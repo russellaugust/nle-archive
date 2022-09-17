@@ -62,9 +62,16 @@ def dir_path(string):
 def parse_arguments():
     # terminal level interface for CLI
 
-    parser = argparse.ArgumentParser(prog='archive xml', description='Archive your project using an XML by discovering the media used and recreating the folder structure for reconnect. Dont forget to disabled your multicams (not flatten) if you want them included :)')
-    parser.add_argument('-x', '--xml', type=open, help='XML file containing project that needs archiving.')
-    parser.add_argument('-d', '--destination', type=dir_path, help='path to the dailies to be replaced.')
+    parser = argparse.ArgumentParser(prog='archive xml', 
+                                     description='Archive your project using an XML by discovering the media used and recreating the folder structure for reconnect. Dont forget to disabled your multicams (not flatten) if you want them included :)')
+    
+    parser.add_argument('-x', '--xml', 
+                        type=open, 
+                        help='XML file containing project that needs archiving.')
+    
+    parser.add_argument('-d', '--destination', 
+                        type=dir_path, 
+                        help='path to the dailies to be replaced.')
     args = parser.parse_args()
 
     if args.xml and args.destination:
