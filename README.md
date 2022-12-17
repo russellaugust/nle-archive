@@ -17,7 +17,7 @@ python3 archive_premiere_xml.py \
 -d '/Volumes/EXTERNAL_02' \
 -e "/Volumes/Media/Media/Media - Editorial/" \
 "/Volumes/Media/Media/Media - Received/" \
-"/Volumes/matz-projects/"
+"/Volumes/projects/"
 ```
 
 ```bash
