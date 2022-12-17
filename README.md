@@ -15,8 +15,8 @@ python3 archive_premiere_xml.py \
 python3 archive_premiere_xml.py \
 -x '/Users/admin/Desktop/sequence.xml' \
 -d '/Volumes/EXTERNAL_02' \
--e "/Volumes/Media/Matz/Media/Media - Editorial/" \
-"/Volumes/Media/Matz/Media/Media - Received/" \
+-e "/Volumes/Media/Media/Media - Editorial/" \
+"/Volumes/Media/Media/Media - Received/" \
 "/Volumes/matz-projects/"
 ```
 
