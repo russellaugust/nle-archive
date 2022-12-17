@@ -24,5 +24,5 @@ python3 archive_premiere_xml.py \
 python3 archive_premiere_xml.py \
 -x '/Users/admin/Desktop/sequence.xml' \
 -d '/Volumes/EXTERNAL_02' \
---exclude_directories "/Volumes/Media/Assist/zRussell" "/Volumes/Media/Media/Dailies - ProResHQ/"
+--exclude_directories "/Volumes/Media/Assist/" "/Volumes/Media/Media/Dailies/"
 ```
