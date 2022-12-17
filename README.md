@@ -6,7 +6,7 @@ Tool for consolidating media from an XML file.  Primarily used for archiving a f
 
 ```bash
 python3 archive_premiere_xml.py \
--x '/Volumes/Devo1/Exports/Cuts Reels 1-7 Flattened.xml' \
+-x '/Volumes/Devo1/Exports/Cuts Reels 1-4.xml' \
 -d '/Volumes/Devo1/forCopy'
 ```
 
