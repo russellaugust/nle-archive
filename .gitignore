@@ -1,0 +1,9 @@
+# System Files
+.DS_Store
+
+# Virtual Envorimnets
+/venv
+
+# Testing
+testing
+test
