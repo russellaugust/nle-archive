@@ -4,6 +4,8 @@ from urllib.parse import unquote
 import os, math, argparse
 from shutil import copy2
 
+import read_paths_from_file as pathtools
+
 import logging
 
 logging.basicConfig(
@@ -37,7 +39,7 @@ def filepaths_from_xml(xml_path: str, ignore_paths: List[str] = []) -> List[str]
         unquoted_path = unquote(pathurl.text.split("file://localhost")[1])
         include=True
         if unquoted_path not in src_files:
-            print (ignore_paths)
+            # print (ignore_paths)
             for ignore_path in ignore_paths:
                 if unquoted_path.startswith(ignore_path):
                     include=False
