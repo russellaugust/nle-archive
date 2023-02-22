@@ -131,12 +131,26 @@ def parse_arguments():
                         type=dir_path, 
                         nargs='*',
                         help='paths to exclude from copy.')
+
+    parser.add_argument('-i', '--ignore_paths_from_file', 
+                        type=dir_path, 
+                        nargs='1',
+                        default = '',
+                        help='path to text file containing filepaths to ignore.')
+    
+    parser.add_argument('-s', '--skip_directories_in_file', 
+                        type=dir_path, 
+                        nargs='*',
+                        help='directories to ignore within text file.')
+
     args = parser.parse_args()
 
     if args.xml and args.destination:
         xml_path		= args.xml
         destination 	= args.destination
         ignore_paths    = args.exclude_directories
+        ignore_txt_file = args.ignore_paths_from_file
+        skip_txt_dirs   = args.skip_directories_in_file
 
         # all source paths
         # source_paths_all = filepaths_from_xml(
@@ -148,8 +162,47 @@ def parse_arguments():
         source_paths_to_process = filepaths_from_xml(
             xml_path=xml_path,
             ignore_paths=ignore_paths)
+        
+        # Fix XML Paths /./ /../ Premiere issue
+        for index, path in enumerate(source_paths_to_process):
+            if '/./' in path or '/../' in path:
+                source_paths_to_process[index] = pathtools.fix_premiere_path_dots(path)
+
         total_size_with_ignored = sum([os.path.getsize(src_file) for src_file in source_paths_to_process])
         print ("XML Media (excluding ignored paths):", convert_size(total_size_with_ignored))
+
+        # process paths to ignore from txt file if provided
+        # TODO add in CLI option for path replacement, filename only, or truncated path - file comparison options
+        if ignore_txt_file != '':
+            if os.path.exists(ignore_txt_file):
+                xml_common_root = pathtools.find_common_root(source_paths_to_process)
+                print(f"XML Media Common Root: {xml_common_root}")
+
+                txt_paths = pathtools.read_paths_from_file(ignore_txt_file, skip_txt_dirs)
+                print(f"\nTXT Paths: {len(txt_paths)}")
+                txt_common_root = pathtools.find_common_root(txt_paths)
+                print(f"TXT Media Common Root: {txt_common_root}")
+
+                # Builds exact filename match using common root replacement
+                txt_paths = pathtools.conform_paths_to_new_root(xml_common_root, txt_paths)
+                new_txt_common_root = arcxml.pathtools.find_common_root(txt_paths)
+                print(f"Updated TXT Media Common Root: {new_txt_common_root}")
+            
+                # Build list (as sets) of files to transfer, and list of files NOT to transfer
+                paths_to_transfer = set()
+                paths_not_to_transfer = set()
+
+                for path in source_paths_to_process:
+                    if path in txt_paths:
+                        paths_not_to_transfer.add(path)
+                    else:
+                        paths_to_transfer.add(path)
+
+                print(f"\nMedia Files to Transfer: {len(paths_to_transfer)}\nMedia Files to Omit During Transfer: {len(paths_not_to_transfer)}")
+
+                source_paths_to_process = list(paths_to_transfer)
+            else:
+                print(f"\nText file of paths to skip was not found.  No paths will be skipped.\n")
         
         # source paths of of only files that need to be copied
         source_uncopied = uncopied_files(source_paths=source_paths_to_process,

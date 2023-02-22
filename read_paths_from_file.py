@@ -115,10 +115,102 @@ def conform_paths_to_new_root(new_root_path: str, list_of_paths: List[str], repl
         # prepend new root onto paths
         conformed_paths_list[index] = os.path.join(new_root_path, conformed_paths_list[index])
         
-    return conformed_paths_list   
+    return conformed_paths_list
+
+def fix_premiere_path_dots(path: str) -> str:
+    '''
+    Takes a path that has Premieres /./ or /../ path bug and corrects the path string
+
+    :param path str:    path string
+
+    :return:    corrected path string
+    '''
+
+    processed_path = path
+
+    # Remove instances of /./ in filepath
+    if '/./' in processed_path:
+        processed_path = processed_path.replace('/./', '/')
+
+    # Remove instance of /../ and the previous folder referenced by .. in filepath
+    if '/../' in processed_path:
+        split_path = []
+        
+        while processed_path not in  ['', '/']:
+            processed_path, folder = os.path.split(processed_path)
+            split_path.append(folder)
+        split_path.reverse()
+
+        while '..' in split_path:
+            dots_index = split_path.index('..')
+            if dots_index < 1:
+                # give up if .. are at the start of the path, as the folder
+                # backwards one position to remove will not exist
+                break
+            else:
+                split_path.pop(dots_index)
+                split_path.pop(dots_index - 1)
+
+        # preserve any path previx (likely /) remaining in processed path
+        processed_path = processed_path + os.path.join(*split_path)
+        
+
+    return processed_path
+
+def trim_path(path: str, pad: int = -1) -> str:
+    '''
+    Take any filepath and return the filename padded with X number of folders
+    that precede the filename in the path.  For example, the filepath:
+
+    this/is/my/path/to/my/file.txt
+
+    with a pad of 2 would return:
+
+    to/my/file.txt
+    
+    If the total number of folders in the file path is less than the requested
+    pad, the entire file path will be returned.
+
+    If pad is less than 0, the entire filepath will be returned.
+
+    If pad is 0, only the filename is returned
+
+    :param path str:    file path string
+    :param pad int:     number of folders to include in pad
+
+    :return str:    trimmed path string
+    '''
+
+    # Check correct values for arguments
+    if not isinstance(path, str):
+        raise ValueError(f"String expected. Received '{path}'.")
+    
+    try:
+        if int(pad) != pad:
+            raise ValueError()
+    except:
+        raise ValueError(f"Integer expected. Received '{pad}'.")
+    
+    split_path = path.split(os.sep)
+    stop_index = len(split_path) - pad
+
+    new_split_path = split_path[stop_index - 1 : len(split_path)]
+    # if starting slice index is greater than ending slice index 
+    if stop_index > len(split_path):
+        new_split_path = split_path
+
+    return (os.sep).join(new_split_path)
+    
+
+
+
+
+
+
 
 
 def testing():
+    
     paths = read_paths_from_file('testing/MATZ_GS_media_as_of_221129.txt', ["./Assist/", "./zzAutosaves/", "./zzPremiere Scratch Disks/"])
     # for path in paths:
     #     print(path)
@@ -136,6 +228,12 @@ def testing():
     # for path in no_paths:
     #     print(path)
     print(f"# no paths: {len(no_paths)}")
+    
+    print(trim_path('/this/is/my/new/path.txt', 3))
+    print(trim_path('/this_is_my_new_path.txt', 100))
+    print(trim_path('/Users/ben/github/pr_xml_archiver/testing/paths_to_write.txt', 4))
+
+
 
 if __name__ == "__main__":
     testing()
