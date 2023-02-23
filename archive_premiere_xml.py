@@ -3,6 +3,7 @@ import xml.etree.ElementTree as et
 from urllib.parse import unquote
 import os, math, argparse
 from shutil import copy2
+import sys
 
 import read_paths_from_file as pathtools
 
@@ -111,11 +112,21 @@ def dir_path(string):
 		export = "This is not a directory!  " + string
 		raise NotADirectoryError(export)
 
+def is_string(string):
+    # checks is argument is a string
+    if isinstance(string, str):
+        return string
+    else:
+        export = "This is not a string!  " + string
+        raise ValueError(export)
+    
 def parse_arguments():
     # CLI interface
 
-    parser = argparse.ArgumentParser(prog='archive xml', 
-                                     description='Archive your project using an XML by discovering the media used and recreating the folder structure for reconnect. Dont forget to disabled your multicams (not flatten) if you want them included :)')
+    parser = argparse.ArgumentParser(
+                                formatter_class = argparse.ArgumentDefaultsHelpFormatter,
+                                description='Archive your project using an XML by discovering the media used, copying it, and recreating the folder structure for a clean reconnect. Dont forget to disable your multicams (not flatten) if you want them included :)',
+                            )
     
     parser.add_argument('-x', '--xml', 
                         type=open, 
@@ -124,24 +135,27 @@ def parse_arguments():
     
     parser.add_argument('-d', '--destination', 
                         type=dir_path,
-                        required=True, 
-                        help='path to the dailies to be replaced.')
+                        required=True,
+                        help='Path to destination folder where copy will take place.')
 
-    parser.add_argument('-e', '--exclude_directories', 
-                        type=dir_path, 
+    parser.add_argument('-e', '--exclude_directories',  
                         nargs='*',
-                        help='paths to exclude from copy.')
+                        default=[],
+                        help='File paths to exclude from copy. Any filepath beginning with any excluded path(s) will be ignored.')
 
     parser.add_argument('-i', '--ignore_paths_from_file', 
-                        type=dir_path, 
-                        nargs='1',
                         default = '',
-                        help='path to text file containing filepaths to ignore.')
+                        help='Path to text file containing filepaths to ignore.')
     
-    parser.add_argument('-s', '--skip_directories_in_file', 
-                        type=dir_path, 
-                        nargs='*',
-                        help='directories to ignore within text file.')
+    parser.add_argument('-p', '--pad_filenames_with_dirs', 
+                        type=int,
+                        default=-1,
+                        help='Trim XML filepaths down to filename plus X parent directories when comparing against an ignore paths file. Helps identify unique files to ignore, without requiring exactly filepath matches between XML and Ignore paths. If this option is not provided, full filepaths will be used. This option is ignored unless an ingore paths file is also provided.')
+
+    parser.add_argument('--dry_run',
+                        action='store_true',
+                        help='Report how many files will be copied without actually copying any files.'
+                    )
 
     args = parser.parse_args()
 
@@ -150,7 +164,8 @@ def parse_arguments():
         destination 	= args.destination
         ignore_paths    = args.exclude_directories
         ignore_txt_file = args.ignore_paths_from_file
-        skip_txt_dirs   = args.skip_directories_in_file
+        pad             = args.pad_filenames_with_dirs
+        dry_run         = args.dry_run
 
         # all source paths
         # source_paths_all = filepaths_from_xml(
@@ -168,60 +183,82 @@ def parse_arguments():
             if '/./' in path or '/../' in path:
                 source_paths_to_process[index] = pathtools.fix_premiere_path_dots(path)
 
-        total_size_with_ignored = sum([os.path.getsize(src_file) for src_file in source_paths_to_process])
-        print ("XML Media (excluding ignored paths):", convert_size(total_size_with_ignored))
+        print(f"\nPaths found in XML: {len(source_paths_to_process)}")
 
         # process paths to ignore from txt file if provided
         # TODO add in CLI option for path replacement, filename only, or truncated path - file comparison options
         if ignore_txt_file != '':
             if os.path.exists(ignore_txt_file):
-                xml_common_root = pathtools.find_common_root(source_paths_to_process)
-                print(f"XML Media Common Root: {xml_common_root}")
 
-                txt_paths = pathtools.read_paths_from_file(ignore_txt_file, skip_txt_dirs)
-                print(f"\nTXT Paths: {len(txt_paths)}")
-                txt_common_root = pathtools.find_common_root(txt_paths)
-                print(f"TXT Media Common Root: {txt_common_root}")
+                txt_paths = pathtools.read_paths_from_file(ignore_txt_file, ignore_paths)
+                print(f"\nPaths found in ignore text file: {len(txt_paths)}")
 
-                # Builds exact filename match using common root replacement
-                txt_paths = pathtools.conform_paths_to_new_root(xml_common_root, txt_paths)
-                new_txt_common_root = arcxml.pathtools.find_common_root(txt_paths)
-                print(f"Updated TXT Media Common Root: {new_txt_common_root}")
+                # Builds list of [[original-xml-filepath, trimmed-padded-xml-filename], ...]
+                # to be used for identifying which files to transfer/ignore
+                xml_trimmed_paths = []
+                for path in source_paths_to_process:
+                    xml_trimmed_paths.append([path, pathtools.trim_path(path, pad)])
             
                 # Build list (as sets) of files to transfer, and list of files NOT to transfer
                 paths_to_transfer = set()
                 paths_not_to_transfer = set()
 
-                for path in source_paths_to_process:
-                    if path in txt_paths:
-                        paths_not_to_transfer.add(path)
-                    else:
-                        paths_to_transfer.add(path)
+                print("\nBuilding list of files to copy.  This may take some time...")
+                count_msg = ''
+                for index, path in enumerate(xml_trimmed_paths):
+                    if index % 1 == 0:  # Change Mod to reduce speed hit for CLI refresh
+                        # CLI FEEDBACK
+                        sys.stdout.write('\b' * len(count_msg))
+                        count_msg = f"{index}/{len(xml_trimmed_paths)}"
+                        sys.stdout.write(count_msg)
+                        sys.stdout.flush()
 
-                print(f"\nMedia Files to Transfer: {len(paths_to_transfer)}\nMedia Files to Omit During Transfer: {len(paths_not_to_transfer)}")
+                    # Build Lists
+                    omit_flag = False
+                    for transferred_path in txt_paths:
+                        if transferred_path.endswith(path[1]):
+                            paths_not_to_transfer.add(path[0])
+                            omit_flag = True
+                            break
+
+                    if not omit_flag:
+                        paths_to_transfer.add(path[0])
+
+                print(f"\n\nMedia Files to Transfer: {len(paths_to_transfer)}\nMedia Files to Omit During Transfer: {len(paths_not_to_transfer)}")
 
                 source_paths_to_process = list(paths_to_transfer)
             else:
-                print(f"\nText file of paths to skip was not found.  No paths will be skipped.\n")
-        
-        # source paths of of only files that need to be copied
-        source_uncopied = uncopied_files(source_paths=source_paths_to_process,
-                                         destination_path=destination)
-        uncopied_size = sum([os.path.getsize(src_file) for src_file in source_uncopied])
+                print(f"\nText file of paths to skip was not found.  No paths will be skipped.")
+        else:
+            print(f"\nMedia Files to Transfer: {len(source_paths_to_process)}\nMedia Files to Omit During Transfer: None Provided by User")
 
-        # get total size of source files but exclude what's already been copied.
-        print ("XML Media Left to Copy:", convert_size(uncopied_size))
-        
-        ready = False
-        while(ready == False):
-            name = input("Okay to proceed? Y / N: ")
-            if(name.lower() == "y"):
-                copy_files_with_full_path_shutil(
-                    source_paths=source_uncopied, 
-                    destination_path=destination)
-                ready = True
-            elif(name.lower() == "n"):
-                exit()
+        # Copy files if not dry run
+        if not dry_run:
+            total_size_with_ignored = sum([os.path.getsize(src_file) for src_file in source_paths_to_process])
+            print ("XML Media (excluding ignored paths):", convert_size(total_size_with_ignored))
+
+            # source paths of of only files that need to be copied
+            source_uncopied = uncopied_files(source_paths=source_paths_to_process,
+                                            destination_path=destination)
+            uncopied_size = sum([os.path.getsize(src_file) for src_file in source_uncopied])
+
+            # get total size of source files but exclude what's already been copied.
+            print ("XML Media Left to Copy:", convert_size(uncopied_size))
+            
+            ready = False
+            while(ready == False):
+                name = input("Okay to proceed? Y / N: ")
+                if(name.lower() == "y"):
+                    copy_files_with_full_path_shutil(
+                        source_paths=source_uncopied, 
+                        destination_path=destination)
+                    ready = True
+                elif(name.lower() == "n"):
+                    exit()
+        else:
+            print("\nDry Run Complete.  No files were copied.")
+
+        print("\nDone!\n")
 
     else:
         parser.print_help()
