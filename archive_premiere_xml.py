@@ -9,12 +9,6 @@ import read_paths_from_file as pathtools
 
 import logging
 
-logging.basicConfig(
-    filename='example.log', 
-    filemode='a',
-    encoding='utf-8', 
-    level=logging.DEBUG)
-
 def convert_size(size_bytes):
     """ Returns a string of the total file size, human readable."""
     if size_bytes == 0:
@@ -79,6 +73,8 @@ def copy_files_with_full_path_shutil(source_paths: List[str], destination_path: 
     files_skipped = 0
     indent = ' '*5
 
+    logging.info('File(s) copy started.')
+
     for index, src_file in enumerate(source_paths):
 
         #[1:] is snipping off the / to conform to os.path.join rules
@@ -109,13 +105,13 @@ def copy_files_with_full_path_shutil(source_paths: List[str], destination_path: 
                     copy2(src_file, dst_file)
                     files_copied += 1
                     #TODO need to actually do something with the logger
-                    logging.debug(src_file)
+                    logging.debug(f"File Copied: {src_file}")
                 except Exception as e:
-                    logging.debug(f"COPY FAILED: {src_file}  -  {e}")
+                    logging.warning(f"COPY FAILED: {src_file}  -  {e}")
                     print(f"{indent}!!! COPY FAILED!  FILE TRANSFER ERROR: {e}")
                     files_skipped += 1
             else:
-                logging.debug(f"COPY SKIPPED: {src_file}")
+                logging.info(f"COPY SKIPPED: {src_file}")
                 print(f"{indent}!!! COPY SKIPPED!  FILE DOES NOT EXIST: {src_file}")
                 files_skipped += 1
     
@@ -191,6 +187,17 @@ def parse_arguments():
         # total_size = sum([os.path.getsize(src_file) for src_file in source_paths_all])
         # print ("XML Media Total:", convert_size(total_size))
         
+        # Initialize log to target destination
+        logging.basicConfig(
+            filename=os.path.join(destination, 'XML_Media_Archive.log'),
+            format='%(asctime)s\t%(levelname)s:\t%(message)s',
+            datefmt='%Y/%m/%d %H:%M:%S', 
+            filemode='a',
+            encoding='utf-8', 
+            level=logging.DEBUG)
+
+        logging.debug("Media Archive Started.")
+
         # source paths excluding ignored pathes
         source_paths_to_process = filepaths_from_xml(
             xml_path=xml_path,
@@ -284,8 +291,10 @@ def parse_arguments():
                     ready = True
                 elif(name.lower() == "n"):
                     exit()
+            logging.debug("Media Archive Copmlete\n\n")
         else:
             print("\nDry Run Complete.  No files were copied.")
+            logging.info("Dry Run Complete.\n\n")
 
         print("\nDone!\n")
 
