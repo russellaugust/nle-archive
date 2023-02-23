@@ -109,7 +109,7 @@ def copy_files_with_full_path_shutil(source_paths: List[str], destination_path: 
                     #TODO need to actually do something with the logger
                     logging.debug(src_file)
                 except Exception as e:
-                    loggind.debug(f"COPY FAILED: {src_file}  -  {e}")
+                    logging.debug(f"COPY FAILED: {src_file}  -  {e}")
                     print(f"!!! COPY FAILED!  FILE TRANSFER ERROR: {e}")
                     files_skipped += 1
             else:
