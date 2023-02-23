@@ -92,7 +92,7 @@ def copy_files_with_full_path_shutil(source_paths: List[str], destination_path: 
             print("creating folder: ", dst_folder)
             os.makedirs(dst_folder)
             
-        # skip files that already exist.
+        # skip files that already exist.y
         if os.path.exists(dst_file):
             print("File exists, skipping.")
         else:
