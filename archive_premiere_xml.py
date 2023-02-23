@@ -90,10 +90,10 @@ def copy_files_with_full_path_shutil(source_paths: List[str], destination_path: 
         
         # create the full path of folders if they don't exist
         if not os.path.exists(dst_folder):
-            print("creating folder: ", dst_folder)
+            print("\nCreating folder: ", dst_folder)
             os.makedirs(dst_folder)
             
-        print(f"{index}/{len(source_paths)}    {src_file}")
+        print(f"\n{index+1}/{len(source_paths)}    {src_file}")
         # skip files that already exist.
         if os.path.exists(dst_file):
             print(f"{indent}File exists, skipping.")
@@ -118,6 +118,8 @@ def copy_files_with_full_path_shutil(source_paths: List[str], destination_path: 
                 logging.debug(f"COPY SKIPPED: {src_file}")
                 print(f"{indent}!!! COPY SKIPPED!  FILE DOES NOT EXIST: {src_file}")
                 files_skipped += 1
+    
+    print(f"\n\n{files_copied} files copied.\n{files_skipped} files not copied.")
 
 
 def dir_path(string):
@@ -261,8 +263,16 @@ def parse_arguments():
                                             destination_path=destination)
             uncopied_size = sum([os.path.getsize(src_file) for src_file in source_uncopied if os.path.exists(src_file)])
 
+            if len(source_paths_to_process) != len(source_uncopied):
+                print((f"\nALERT! Some files to be copied were found to already exist in the target destination."
+                       f"\n  Total number of files to copy: {len(source_paths_to_process)}"
+                       f"\n  Files already existing in target location: {len(source_paths_to_process) - len(source_uncopied)}"
+                       f"\n  Files remaining to copy: {len(source_uncopied)}"
+                       "\nExisting files will not be recopied."
+                       "\nIf this is incorrect, please clear the destinaton folder's contents or select a new destination."))
+
             # get total size of source files but exclude what's already been copied.
-            print("XML Media Left to Copy:", convert_size(uncopied_size))
+            print("\nXML Media Left to Copy:", convert_size(uncopied_size))
             
             ready = False
             while(ready == False):
