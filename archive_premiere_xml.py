@@ -77,8 +77,9 @@ def copy_files_with_full_path_shutil(source_paths: List[str], destination_path: 
     """ Performs copy to new location. """
     files_copied = 0
     files_skipped = 0
-    
-    for src_file in source_paths:
+    indent = ' '*5
+
+    for index, src_file in enumerate(source_paths):
 
         #[1:] is snipping off the / to conform to os.path.join rules
         dst_file = os.path.join(
@@ -92,14 +93,15 @@ def copy_files_with_full_path_shutil(source_paths: List[str], destination_path: 
             print("creating folder: ", dst_folder)
             os.makedirs(dst_folder)
             
+        print(f"{index}/{len(source_paths)}    {src_file}")
         # skip files that already exist.
         if os.path.exists(dst_file):
-            print("File exists, skipping.")
+            print(f"{indent}File exists, skipping.")
         else:
             if os.path.exists(src_file):
                 # read out what's being copied
-                print("copying from : ", src_file)
-                print("copying to   : ", dst_file)
+                print(f"{indent}copying from : ", src_file)
+                print(f"{indent}copying to   : ", dst_file)
                 
                 # perform the copy
                 # copy(src_file, dst_file)
@@ -110,11 +112,11 @@ def copy_files_with_full_path_shutil(source_paths: List[str], destination_path: 
                     logging.debug(src_file)
                 except Exception as e:
                     logging.debug(f"COPY FAILED: {src_file}  -  {e}")
-                    print(f"!!! COPY FAILED!  FILE TRANSFER ERROR: {e}")
+                    print(f"{indent}!!! COPY FAILED!  FILE TRANSFER ERROR: {e}")
                     files_skipped += 1
             else:
                 logging.debug(f"COPY SKIPPED: {src_file}")
-                print(f"!!! COPY SKIPPED!  FILE DOES NOT EXIST: {src_file}")
+                print(f"{indent}!!! COPY SKIPPED!  FILE DOES NOT EXIST: {src_file}")
                 files_skipped += 1
 
 
