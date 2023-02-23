@@ -75,6 +75,8 @@ def uncopied_files(source_paths: List[str], destination_path: str) -> List[str]:
 
 def copy_files_with_full_path_shutil(source_paths: List[str], destination_path: str):
     """ Performs copy to new location. """
+    files_copied = 0
+    files_skipped = 0
     
     for src_file in source_paths:
 
@@ -94,15 +96,27 @@ def copy_files_with_full_path_shutil(source_paths: List[str], destination_path: 
         if os.path.exists(dst_file):
             print("File exists, skipping.")
         else:
-            # read out what's being copied
-            print("copying from : ", src_file)
-            print("copying to   : ", dst_file)
-            logging.debug(dst_file)
-            
-            # perform the copy
-            # copy(src_file, dst_file)
-            copy2(src_file, dst_file)
-            
+            if os.path.exists(src_file):
+                # read out what's being copied
+                print("copying from : ", src_file)
+                print("copying to   : ", dst_file)
+                
+                # perform the copy
+                # copy(src_file, dst_file)
+                try:
+                    copy2(src_file, dst_file)
+                    files_copied += 1
+                    #TODO need to actually do something with the logger
+                    logging.debug(src_file)
+                except Exception as e:
+                    loggind.debug(f"COPY FAILED: {src_file}  -  {e}")
+                    print(f"!!! COPY FAILED!  FILE TRANSFER ERROR: {e}")
+                    files_skipped += 1
+            else:
+                logging.debug(f"COPY SKIPPED: {src_file}")
+                print(f"!!! COPY SKIPPED!  FILE DOES NOT EXIST: {src_file}")
+                files_skipped += 1
+
 
 def dir_path(string):
 	# Checks if the path is a directory or not, just to confirm its real.	
@@ -234,16 +248,19 @@ def parse_arguments():
 
         # Copy files if not dry run
         if not dry_run:
-            total_size_with_ignored = sum([os.path.getsize(src_file) for src_file in source_paths_to_process])
-            print ("XML Media (excluding ignored paths):", convert_size(total_size_with_ignored))
+            # TODO size total for ALL and COPY ONLY media are redundant and waste time.  Can be combined into single pass with ifs
+
+            # # CURRENTLY OMITTED TO NOT WAS TIME ON EXTRA CALCULATIONS OF THOUSANDS OF FILES
+            # total_size_with_ignored = sum([os.path.getsize(src_file) for src_file in source_paths_to_process if os.path.exists(src_file)])
+            # print("XML Media (including ignored paths):", convert_size(total_size_with_ignored))
 
             # source paths of of only files that need to be copied
             source_uncopied = uncopied_files(source_paths=source_paths_to_process,
                                             destination_path=destination)
-            uncopied_size = sum([os.path.getsize(src_file) for src_file in source_uncopied])
+            uncopied_size = sum([os.path.getsize(src_file) for src_file in source_uncopied if os.path.exists(src_file)])
 
             # get total size of source files but exclude what's already been copied.
-            print ("XML Media Left to Copy:", convert_size(uncopied_size))
+            print("XML Media Left to Copy:", convert_size(uncopied_size))
             
             ready = False
             while(ready == False):
