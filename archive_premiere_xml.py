@@ -234,7 +234,7 @@ def parse_arguments():
                     if index % 1 == 0:  # Change Mod to reduce speed hit for CLI refresh
                         # CLI FEEDBACK
                         sys.stdout.write('\b' * len(count_msg))
-                        count_msg = f"{index}/{len(xml_trimmed_paths)}"
+                        count_msg = f"{index+1}/{len(xml_trimmed_paths)}"
                         sys.stdout.write(count_msg)
                         sys.stdout.flush()
 
@@ -290,8 +290,10 @@ def parse_arguments():
                         destination_path=destination)
                     ready = True
                 elif(name.lower() == "n"):
-                    exit()
-            logging.debug("Media Archive Copmlete\n\n")
+                    #exit()
+                    logging.debug("User did not proceed with copy.")
+                    break
+            logging.debug("Media Archive Copmlete.\n\n")
         else:
             print("\nDry Run Complete.  No files were copied.")
             logging.info("Dry Run Complete.\n\n")
