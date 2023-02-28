@@ -70,7 +70,7 @@ def remove_paths_from_filepaths(list_of_paths: List[str]) -> List[str]:
 
     return list(list_of_files)
 
-def find_common_root(list_of_paths: list):
+def find_common_root(list_of_paths: list) -> str:
     '''
     Given a list of filepaths, find a common root path among them
 
@@ -203,35 +203,9 @@ def trim_path(path: str, pad: int = -1) -> str:
     
 
 
-
-
-
-
-
-
 def testing():
-    
-    paths = read_paths_from_file('testing/MATZ_GS_media_as_of_221129.txt', ["./Assist/", "./zzAutosaves/", "./zzPremiere Scratch Disks/"])
-    # for path in paths:
-    #     print(path)
-    print(f"# paths: {len(paths)}")
-
-    common_parent = find_common_root(paths)
-    print(f"Common Root Folder: {common_parent}")
-
-    new_paths = conform_paths_to_new_root("/this/is/my/new/root/path/", paths)
-    # for path in new_paths:
-    #     print(path)
-    print(f"# new paths: {len(new_paths)}")
-
-    no_paths = remove_paths_from_filepaths(paths)
-    # for path in no_paths:
-    #     print(path)
-    print(f"# no paths: {len(no_paths)}")
-    
-    print(trim_path('/this/is/my/new/path.txt', 3))
-    print(trim_path('/this_is_my_new_path.txt', 100))
-    print(trim_path('/Users/ben/github/pr_xml_archiver/testing/paths_to_write.txt', 4))
+    # When you gotta just try something right now
+    pass
 
 
 

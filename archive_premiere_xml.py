@@ -100,7 +100,6 @@ def copy_files_with_full_path_shutil(source_paths: List[str], destination_path: 
                 print(f"{indent}copying to   : ", dst_file)
                 
                 # perform the copy
-                # copy(src_file, dst_file)
                 try:
                     copy2(src_file, dst_file)
                     files_copied += 1
@@ -261,7 +260,7 @@ def parse_arguments():
         if not dry_run:
             # TODO size total for ALL and COPY ONLY media are redundant and waste time.  Can be combined into single pass with ifs
 
-            # # CURRENTLY OMITTED TO NOT WAS TIME ON EXTRA CALCULATIONS OF THOUSANDS OF FILES
+            # # CURRENTLY OMITTED TO NOT WASTE TIME ON EXTRA CALCULATIONS OF THOUSANDS OF FILES
             # total_size_with_ignored = sum([os.path.getsize(src_file) for src_file in source_paths_to_process if os.path.exists(src_file)])
             # print("XML Media (including ignored paths):", convert_size(total_size_with_ignored))
 
