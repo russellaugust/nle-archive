@@ -1,0 +1,19 @@
+# System Files
+.DS_Store
+
+# Virtual Envorimnets
+/venv
+.python-version
+
+# Testing
+testing
+test
+
+# Log Files
+*.log
+
+# Compiled Files
+*.pyc
+
+# IDE Files
+launch.json
