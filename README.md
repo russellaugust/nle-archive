@@ -1,6 +1,6 @@
 # Premiere XML Archiver
 
-Tool for consolidating media from an XML file.  Primarily used for archiving a final project or creating a travel hard drive.
+Tool for consolidating media from an XML or AAF file.  Primarily used for archiving a final project or creating a travel hard drive.
 
 # Example CLI
 
