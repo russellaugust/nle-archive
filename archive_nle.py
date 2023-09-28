@@ -7,12 +7,11 @@ from datetime import datetime
 
 import logging
 
-logging.basicConfig(filename='example.log', 
-                    filemode='a',
-                    level=logging.DEBUG)
+logging.basicConfig(filename="example.log", filemode="a", level=logging.DEBUG)
 
-def convert_size(size_bytes:int):
-    """ Returns a string of the total file size, human readable."""
+
+def convert_size(size_bytes: int):
+    """Returns a string of the total file size, human readable."""
     if size_bytes == 0:
         return "0B"
     size_name = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
@@ -25,18 +24,19 @@ def convert_size(size_bytes:int):
 def filenames_in_path(path: Path, extensions: List[str]):
     dst_files = set()
     for ext in extensions:
-        dst_files.update(p.name for p in path.rglob(f'*.{ext}'))
+        dst_files.update(p.name for p in path.rglob(f"*.{ext}"))
     return dst_files
+
 
 def uncopiedfiles_directoryagnostic(src_paths: List[Path], dst_path: Path) -> List[str]:
     # dst_path = Path(dst_path)
-    
+
     # Get all MXF and WAV files in the destination base path
     # dst = get_filelist(dst_path, ['mxf', 'MXF', 'wav', 'WAV'])
-    dst = filenames_in_path(dst_path, ['*'])
+    dst = filenames_in_path(dst_path, ["*"])
 
     # go through source files, if any file names don't match, add to copy_list
-    copy_list = []  
+    copy_list = []
     for src in src_paths:
         if src.name in dst:
             pass
@@ -45,35 +45,40 @@ def uncopiedfiles_directoryagnostic(src_paths: List[Path], dst_path: Path) -> Li
     return copy_list
 
 
-
 def destination_path(src_file: Path, base_path: Path) -> Path:
     """Transforms the source path into a destination path."""
-    relative_path = str(src_file).split('/Volumes/', 1)[-1]
+    relative_path = str(src_file).split("/Volumes/", 1)[-1]
     return base_path / Path(relative_path)
+
 
 def file_exists(dst_file: Path) -> bool:
     """Checks if a file is copied to the destination."""
     return dst_file.exists()
 
+
 def uncopied_files(src_files: List[Path], dst_path: Path) -> List[str]:
     """Get a list of source files that have not been copied."""
 
-    files_to_copy = [Path(src_path) for src_path in src_files 
-                     if not file_exists(destination_path(src_path, dst_path))]
-    
-    return files_to_copy
+    files_to_copy = [
+        Path(src_path)
+        for src_path in src_files
+        if not file_exists(destination_path(src_path, dst_path))
+    ]
 
+    return files_to_copy
 
 
 def ensure_folder_exists(folder: Path):
     """Creates folder if it doesn't exist."""
     folder.mkdir(parents=True, exist_ok=True)
 
+
 def determine_destination(src: Path, base_dst: Path, flat: bool) -> Path:
     """Determine the destination path."""
     if flat:
         return base_dst / src.name
     return base_dst / src.relative_to("/Volumes")
+
 
 def copy_file(src: Path, dst: Path, dry_run=False):
     """Copies file and creates necessary folders."""
@@ -82,6 +87,7 @@ def copy_file(src: Path, dst: Path, dry_run=False):
     else:
         ensure_folder_exists(dst.parent)
         copy2(src, dst)
+
 
 def copy_files_shutil(src_paths: List[Path], dst_path: Path, flat: bool = False):
     """Performs copy to new location."""
@@ -97,15 +103,15 @@ def copy_files_shutil(src_paths: List[Path], dst_path: Path, flat: bool = False)
             print("File exists, skipping.")
         else:
             print(f"copying from : {src}\ncopying to   : {dst}")
-            
+
             try:
                 copy_file(src, dst, dry_run=False)
             except Exception as e:
-                with open('failed.log', 'a') as f:
-                    f.write(f'failed to write from: {src}\n')
-                    f.write(f'failed to write from: {dst}\n')
-                    f.write(f'why: {e}\n\n')
-            
+                with open("failed.log", "a") as f:
+                    f.write(f"failed to write from: {src}\n")
+                    f.write(f"failed to write from: {dst}\n")
+                    f.write(f"why: {e}\n\n")
+
 
 def dir_path(string):
     # Check if the path is a directory
@@ -115,26 +121,38 @@ def dir_path(string):
         export = "This is not a directory!  " + string
         raise NotADirectoryError(export)
 
+
 def parse_arguments():
     # CLI interface
 
-    parser = argparse.ArgumentParser(prog='archive aaf xml', 
-                                     description='Archive your project or sequence using an XML or AAF by discovering the media used and recreating the folder structure for reconnect. When using Premiere, dont forget to disabled your multicams (not flatten) if you want them included :)')
-    
-    parser.add_argument('-s', '--source', 
-                        type=Path, 
-                        required=True,
-                        help='XML or AAF file containing project that needs archiving.')
-    
-    parser.add_argument('-d', '--destination', 
-                        type=Path,
-                        required=True, 
-                        help='path to the dailies to be replaced.')
+    parser = argparse.ArgumentParser(
+        prog="archive aaf xml",
+        description="Archive your project or sequence using an XML or AAF by discovering the media used and recreating the folder structure for reconnect. When using Premiere, dont forget to disabled your multicams (not flatten) if you want them included :)",
+    )
 
-    parser.add_argument('-e', '--exclude_directories', 
-                        type=dir_path, 
-                        nargs='*',
-                        help='paths to exclude from copy.')
+    parser.add_argument(
+        "-s",
+        "--source",
+        type=Path,
+        required=True,
+        help="XML or AAF file containing project that needs archiving.",
+    )
+
+    parser.add_argument(
+        "-d",
+        "--destination",
+        type=Path,
+        required=True,
+        help="path to the dailies to be replaced.",
+    )
+
+    parser.add_argument(
+        "-e",
+        "--exclude_directories",
+        type=dir_path,
+        nargs="*",
+        help="paths to exclude from copy.",
+    )
 
     args = parser.parse_args()
 
@@ -145,69 +163,71 @@ def parse_arguments():
     else:
         return parser.parse_args()
 
+
 def main():
     args = parse_arguments()
-    
+
     source = args.source
     destination = args.destination
     ignore_paths = args.exclude_directories
-    
+
     # # all source paths
     # source_paths_all = search.filepaths_from_xml(xml_path=source)
-    # total_size = sum([os.path.getsize(src_file) 
+    # total_size = sum([os.path.getsize(src_file)
     #                   for src_file in source_paths_all])
     # print ("XML Media Total:", convert_size(total_size))
 
-    source_paths_to_process = ''
+    source_paths_to_process = ""
     source_uncopied = []
     flat = False
-    
-    if source.suffix == '.xml':
+
+    if source.suffix == ".xml":
         # source paths excluding ignored pathes
         source_paths_to_process = search.filepaths_from_xml(
-            xml_path=source,
-            ignore_paths=ignore_paths)
-        
-        # source paths of only files that need to be copied  
+            xml_path=source, ignore_paths=ignore_paths
+        )
+
+        # source paths of only files that need to be copied
         source_uncopied = uncopied_files(
-            src_files=source_paths_to_process,
-            dst_path=destination)
-    
-    elif source.suffix  == '.aaf':
+            src_files=source_paths_to_process, dst_path=destination
+        )
+
+    elif source.suffix == ".aaf":
         # source paths excluding ignored pathes
         source_paths_to_process = search.filepaths_from_aaf(
-            aaf_path=source,
-            ignore_paths=ignore_paths)
-        
+            aaf_path=source, ignore_paths=ignore_paths
+        )
+
         source_uncopied = uncopiedfiles_directoryagnostic(
-            src_paths=source_paths_to_process,
-            dst_path=destination)
+            src_paths=source_paths_to_process, dst_path=destination
+        )
         flat = True
-    
-    src_size_with_ignored = sum([os.path.getsize(src_file) 
-                                   for src_file in source_paths_to_process])
-    print ("Total Media (excluding ignored paths):", convert_size(src_size_with_ignored))
+
+    src_size_with_ignored = sum(
+        [os.path.getsize(src_file) for src_file in source_paths_to_process]
+    )
+    print("Total Media (excluding ignored paths):", convert_size(src_size_with_ignored))
 
     # print(source_uncopied)
-    uncopied_size = sum([os.path.getsize(src_file) 
-                            for src_file in source_uncopied])
+    uncopied_size = sum([os.path.getsize(src_file) for src_file in source_uncopied])
 
     # get total size of source files but exclude what's already been copied.
-    print ("Media Left to Copy:", convert_size(uncopied_size))
-    
+    print("Media Left to Copy:", convert_size(uncopied_size))
+
     ready = False
-    while(ready == False):
+    while ready == False:
         name = input("Okay to proceed? Y / N: ")
-        if(name.lower() == "y"):
+        if name.lower() == "y":
             copy_files_shutil(
-                src_paths=source_uncopied, 
-                dst_path=destination,flat=flat)
+                src_paths=source_uncopied, dst_path=destination, flat=flat
+            )
             ready = True
-        elif(name.lower() == "n"):
+        elif name.lower() == "n":
             exit()
-            
+
     # TODO add a section that goes back over and compares the source file against the destination file to make sure they are the same size.  If they are not, then it will copy the file again.  This will be useful for when the copy fails for some reason.
     # TODO add a section that goes back over and compares the source file against the destination files and allows the user to choose if they want to remove files on the destination not present in the source file, this is for storage purposes only.
 
-if __name__== "__main__":
+
+if __name__ == "__main__":
     main()
