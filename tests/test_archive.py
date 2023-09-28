@@ -1,4 +1,4 @@
-import archive_xml_aaf_tdd as a
+import archive_nle as a
 import search as s
 import unittest, pytest
 from pathlib import Path
@@ -10,18 +10,18 @@ def test_convert_size():
     assert a.convert_size(10000000000000) == '9.09 TB'
     
 def test_dir_path():
-    with patch('archive_xml_aaf_tdd.Path.is_dir', return_value=True):
+    with patch('archive_nle.Path.is_dir', return_value=True):
         assert a.dir_path('/Volumes/raid/') == '/Volumes/raid/'
 
-    with patch('archive_xml_aaf_tdd.Path.is_dir', return_value=False):
+    with patch('archive_nle.Path.is_dir', return_value=False):
         with pytest.raises(NotADirectoryError):
             a.dir_path('/Volumes/raid/')
     
 def test_parse_arguments_input_variables_are_cast_accurately():
     # Mock the command-line arguments
     with patch('sys.argv', ['archive aaf xml', '-s', 'some_source.xml', '-d', '/some/destination', '-e', '/path/to/exclude1', '/path/to/exclude2']), \
-         patch('archive_xml_aaf_tdd.Path.is_file', return_value=True), \
-         patch('archive_xml_aaf_tdd.Path.is_dir', return_value=True):
+         patch('archive_nle.Path.is_file', return_value=True), \
+         patch('archive_nle.Path.is_dir', return_value=True):
              
              args = a.parse_arguments()
              
@@ -33,8 +33,8 @@ def test_parse_arguments_input_variables_are_cast_accurately():
 def test_parse_arguments_invalid_directory():
     # Mock the command-line arguments
     with patch('sys.argv', ['prog_name', '-s', 'some_source.xml', '-d', '/nonexistent/destination']), \
-         patch('archive_xml_aaf_tdd.Path.is_file', return_value=False), \
-         patch('archive_xml_aaf_tdd.Path.is_dir', return_value=True), \
+         patch('archive_nle.Path.is_file', return_value=False), \
+         patch('archive_nle.Path.is_dir', return_value=True), \
          pytest.raises(SystemExit):
              a.parse_arguments()
              
@@ -48,7 +48,7 @@ def test_is_file_copied_not():
     
 def test_uncopied_files():
     
-    with patch('archive_xml_aaf_tdd.file_exists', return_value=True):
+    with patch('archive_nle.file_exists', return_value=True):
 
         srcs = [Path('/Volumes/raid1/dailies/test1.mov'), Path('/Volumes/raid1/dailies/test2.mov')]
         uncopied_files = a.uncopied_files(srcs, Path('/Volumes/raid2/'))
@@ -56,7 +56,7 @@ def test_uncopied_files():
     
         assert uncopied_files != compare
         
-    with patch('archive_xml_aaf_tdd.file_exists', return_value=False):
+    with patch('archive_nle.file_exists', return_value=False):
 
         srcs = [Path('/Volumes/raid1/dailies/test1.mov'), Path('/Volumes/raid1/dailies/test2.mov')]
         uncopied_files = a.uncopied_files(srcs, Path('/Volumes/raid2/'))
