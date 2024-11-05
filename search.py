@@ -43,22 +43,29 @@ def filepaths_from_aaf(aaf_path: str, ignore_paths: Optional[List[str]] = None) 
 
 def extract_files_from_aaf(aaf_path: str) -> List[str]:
     """Extract and return all file paths from the AAF."""
-    
+
     import aaf2
-    
+
     with aaf2.open(aaf_path, 'r') as f:
         files = []
         for mob in f.content.sourcemobs():
             for loc in mob.descriptor.locator:
+                # Use the updated function
                 file = unquoted_path_from_url(loc['URLString'].value)
                 files.append(file)
     return files
 
 
 def unquoted_path_from_url(url: str) -> str:
-    """Extract the filesystem path from a file URL."""
+    """Extract the filesystem path from a file URL and ensure it starts with /Volumes."""
     parsed_url = urlparse(url)
-    return unquote(parsed_url.path)
+    path = unquote(parsed_url.path)
+
+    # Ensure the path starts with /Volumes
+    if not path.startswith('/Volumes/'):
+        path = '/Volumes' + path
+
+    return path
 
 def filter_ignored_paths(files: List[str], 
                          ignore_paths: List[str]) -> List[str]:

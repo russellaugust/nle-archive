@@ -4,11 +4,14 @@ from shutil import copy2
 import search
 from pathlib import Path
 from datetime import datetime
+import time
 
 import logging
 
 logging.basicConfig(filename="example.log", filemode="a", level=logging.DEBUG)
 
+def log_file_operation(file_path: Path, operation: str):
+    logging.debug(f"{operation}: {file_path}")
 
 def convert_size(size_bytes: int):
     """Returns a string of the total file size, human readable."""
@@ -29,13 +32,13 @@ def filenames_in_path(path: Path, extensions: List[str]):
 
 
 def uncopiedfiles_directoryagnostic(src_paths: List[Path], dst_path: Path) -> List[str]:
-    # dst_path = Path(dst_path)
-
-    # Get all MXF and WAV files in the destination base path
-    # dst = get_filelist(dst_path, ['mxf', 'MXF', 'wav', 'WAV'])
+    # Get all files in the destination base path
     dst = filenames_in_path(dst_path, ["*"])
 
-    # go through source files, if any file names don't match, add to copy_list
+    # Ensure src_paths contains Path objects
+    src_paths = [Path(src) for src in src_paths]
+
+    # Go through source files, if any file names don't match, add to copy_list
     copy_list = []
     for src in src_paths:
         if src.name in dst:
@@ -56,17 +59,14 @@ def file_exists(dst_file: Path) -> bool:
     return dst_file.exists()
 
 
-def uncopied_files(src_files: List[Path], dst_path: Path) -> List[str]:
+def uncopied_files(src_files: List[Path], dst_path: Path) -> List[Path]:
     """Get a list of source files that have not been copied."""
-
     files_to_copy = [
         Path(src_path)
         for src_path in src_files
         if not file_exists(destination_path(src_path, dst_path))
     ]
-
     return files_to_copy
-
 
 def ensure_folder_exists(folder: Path):
     """Creates folder if it doesn't exist."""
@@ -164,6 +164,17 @@ def parse_arguments():
         return parser.parse_args()
 
 
+def get_file_size_with_retry(file_path: str, retries: int = 3, delay: float = 1.0) -> int:
+    """Get file size with retries to handle potential file system latency."""
+    for attempt in range(retries):
+        try:
+            return os.path.getsize(file_path)
+        except FileNotFoundError as e:
+            if attempt < retries - 1:
+                time.sleep(delay)
+            else:
+                raise e
+
 def main():
     args = parse_arguments()
 
@@ -171,13 +182,7 @@ def main():
     destination = args.destination
     ignore_paths = args.exclude_directories
 
-    # # all source paths
-    # source_paths_all = search.filepaths_from_xml(xml_path=source)
-    # total_size = sum([os.path.getsize(src_file)
-    #                   for src_file in source_paths_all])
-    # print ("XML Media Total:", convert_size(total_size))
-
-    source_paths_to_process = ""
+    source_paths_to_process = []
     source_uncopied = []
     flat = False
 
@@ -204,12 +209,12 @@ def main():
         flat = True
 
     src_size_with_ignored = sum(
-        [os.path.getsize(src_file) for src_file in source_paths_to_process]
+        [get_file_size_with_retry(str(src_file)) for src_file in source_paths_to_process]
     )
     print("Total Media (excluding ignored paths):", convert_size(src_size_with_ignored))
 
     # print(source_uncopied)
-    uncopied_size = sum([os.path.getsize(src_file) for src_file in source_uncopied])
+    uncopied_size = sum([get_file_size_with_retry(str(src_file)) for src_file in source_uncopied])
 
     # get total size of source files but exclude what's already been copied.
     print("Media Left to Copy:", convert_size(uncopied_size))
