@@ -164,6 +164,18 @@ def parse_arguments():
         return parser.parse_args()
 
 
+def ask_user_to_continue_or_exit(error: Exception):
+    """Ask the user if they'd like to exit or continue."""
+    while True:
+        print(f"Error: {error}")
+        response = input("Would you like to continue or exit? (C/E): ").strip().lower()
+        if response == 'c':
+            return True
+        elif response == 'e':
+            exit()
+        else:
+            print("Invalid input. Please enter 'C' to continue or 'E' to exit.")
+
 def get_file_size_with_retry(file_path: str, retries: int = 3, delay: float = 1.0) -> int:
     """Get file size with retries to handle potential file system latency."""
     for attempt in range(retries):
@@ -173,7 +185,8 @@ def get_file_size_with_retry(file_path: str, retries: int = 3, delay: float = 1.
             if attempt < retries - 1:
                 time.sleep(delay)
             else:
-                raise e
+                print (f"{e}")
+                return 0
 
 def main():
     args = parse_arguments()
@@ -209,12 +222,12 @@ def main():
         flat = True
 
     src_size_with_ignored = sum(
-        [get_file_size_with_retry(str(src_file)) for src_file in source_paths_to_process]
+        [get_file_size_with_retry(str(src_file), 1, 0) for src_file in source_paths_to_process]
     )
     print("Total Media (excluding ignored paths):", convert_size(src_size_with_ignored))
 
     # print(source_uncopied)
-    uncopied_size = sum([get_file_size_with_retry(str(src_file)) for src_file in source_uncopied])
+    uncopied_size = sum([get_file_size_with_retry(str(src_file), 1, 0) for src_file in source_uncopied])
 
     # get total size of source files but exclude what's already been copied.
     print("Media Left to Copy:", convert_size(uncopied_size))
