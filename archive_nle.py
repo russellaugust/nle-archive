@@ -187,6 +187,8 @@ def get_file_size_with_retry(file_path: str, retries: int = 3, delay: float = 1.
             else:
                 print (f"{e}")
                 return 0
+    
+    return 0  # Return 0 if all retries fail
 
 def main():
     args = parse_arguments()
