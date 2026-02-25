@@ -1,4 +1,5 @@
 from typing import List, Optional
+import warnings
 import xml.etree.ElementTree as et
 from urllib.parse import unquote, urlparse
 
@@ -74,15 +75,72 @@ def filter_ignored_paths(files: List[str],
             if not any(file.startswith(ignore_path) 
                        for ignore_path in ignore_paths)]
 
+def extract_pathurls_from_malformed_xml(xml_path: str) -> List[str]:
+    """Best-effort extraction of pathurl values from malformed XML content."""
+    start_tag = "<pathurl>"
+    end_tag = "</pathurl>"
+
+    extracted_paths = []
+    collecting = False
+    current_value = ""
+
+    with open(xml_path, "r", encoding="utf-8", errors="ignore") as xml_file:
+        for line in xml_file:
+            cursor = 0
+
+            while cursor < len(line):
+                if collecting:
+                    end_index = line.find(end_tag, cursor)
+                    if end_index == -1:
+                        current_value += line[cursor:]
+                        break
+
+                    current_value += line[cursor:end_index]
+                    value = current_value.strip()
+                    if value:
+                        extracted_paths.append(unquoted_path_from_url(value))
+
+                    current_value = ""
+                    collecting = False
+                    cursor = end_index + len(end_tag)
+                    continue
+
+                start_index = line.find(start_tag, cursor)
+                if start_index == -1:
+                    break
+
+                value_start = start_index + len(start_tag)
+                end_index = line.find(end_tag, value_start)
+
+                if end_index == -1:
+                    collecting = True
+                    current_value = line[value_start:]
+                    break
+
+                value = line[value_start:end_index].strip()
+                if value:
+                    extracted_paths.append(unquoted_path_from_url(value))
+
+                cursor = end_index + len(end_tag)
+
+    return extracted_paths
+
 def extract_pathurls_from_xml(xml_path: str) -> List[str]:
     """Extract and return all pathurls from the XML."""
     parser = et.XMLParser(encoding='utf-8')
-    xmlTree = et.parse(xml_path, parser)
-    pathurls = xmlTree.findall('.//pathurl')
-    return [unquoted_path_from_url(pathurl.text) for pathurl in pathurls]
+    try:
+        xmlTree = et.parse(xml_path, parser)
+        pathurls = xmlTree.findall('.//pathurl')
+        return [unquoted_path_from_url(pathurl.text) for pathurl in pathurls if pathurl.text]
+    except et.ParseError as error:
+        warnings.warn(
+            f"XML parse failed ({error}). Falling back to best-effort pathurl extraction.",
+            RuntimeWarning,
+        )
+        return extract_pathurls_from_malformed_xml(xml_path)
 
 def filepaths_from_xml(xml_path: str, 
-                       ignore_paths: List[str] = None) -> List[str]:
+                       ignore_paths: Optional[List[str]] = None) -> List[str]:
     """Returns list of unique file paths from the Premiere XML."""
     ignore_paths = ignore_paths or []
 

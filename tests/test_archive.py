@@ -144,6 +144,25 @@ def test_path_from_url():
 def test_extract_pathurls_from_xml_passes():
     result = s.extract_pathurls_from_xml('tests/xmls/TEST_230918.xml')
     assert isinstance(result, list)
+
+def test_extract_pathurls_from_malformed_xml_fallback(tmp_path: Path):
+        malformed_xml = tmp_path / "malformed.xml"
+        malformed_xml.write_text(
+                """<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<xmeml>
+    <sequence>
+        <pathurl>file://localhost/Volumes/Media/Test/A%20Clip.mov</pathurl>
+        <broken>
+    </sequence>
+</xmeml>
+""",
+                encoding="utf-8",
+        )
+
+        result = s.extract_pathurls_from_xml(str(malformed_xml))
+
+        assert isinstance(result, list)
+        assert "/Volumes/Media/Test/A Clip.mov" in result
     
 def test_filter_ignored_paths():
     src_files = s.extract_pathurls_from_xml('tests/xmls/TEST_230918.xml')
