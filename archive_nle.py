@@ -1,5 +1,6 @@
 from typing import List, Sequence
 import os, math, argparse
+import sys
 from shutil import copy2
 import search
 from pathlib import Path
@@ -136,7 +137,12 @@ def parse_arguments():
 
     parser = argparse.ArgumentParser(
         prog="archive aaf xml",
-        description="Archive your project or sequence using an XML or AAF by discovering the media used and recreating the folder structure for reconnect. When using Premiere, dont forget to disabled your multicams (not flatten) if you want them included :)",
+        description=(
+            "Archive your project or sequence using XML, AAF, or PRPROJ sources by "
+            "discovering used media and recreating the folder structure for reconnect. "
+            "When using Premiere XML/PRPROJ, remember to disable multicams (not flatten) "
+            "if you want them included :)"
+        ),
     )
 
     parser.add_argument(
@@ -144,7 +150,7 @@ def parse_arguments():
         "--source",
         type=Path,
         required=True,
-        help="XML or AAF file containing project that needs archiving.",
+        help="XML, AAF, or PRPROJ file containing project media references.",
     )
 
     parser.add_argument(
@@ -177,7 +183,7 @@ def parse_arguments():
     elif args.destination.is_dir() == False:
         parser.error("The destination must be a directory.")
     else:
-        return parser.parse_args()
+        return args
 
 
 def ask_user_to_continue_or_exit(error: Exception):
@@ -217,8 +223,9 @@ def main():
     source_paths_to_process = []
     source_uncopied = []
     flat = False
+    source_suffix = source.suffix.lower()
 
-    if source.suffix == ".xml":
+    if source_suffix == ".xml":
         # source paths excluding ignored pathes
         source_paths_to_process = search.filepaths_from_xml(
             xml_path=source, ignore_paths=ignore_paths
@@ -229,7 +236,7 @@ def main():
             src_files=source_paths_to_process, dst_path=destination
         )
 
-    elif source.suffix == ".aaf":
+    elif source_suffix == ".aaf":
         # source paths excluding ignored pathes
         source_paths_to_process = search.filepaths_from_aaf(
             aaf_path=source, ignore_paths=ignore_paths
@@ -239,6 +246,22 @@ def main():
             src_paths=source_paths_to_process, dst_path=destination
         )
         flat = True
+
+    elif source_suffix == ".prproj":
+        source_paths_to_process = search.filepaths_from_prproj(
+            prproj_path=source, ignore_paths=ignore_paths
+        )
+
+        source_uncopied = uncopied_files(
+            src_files=source_paths_to_process, dst_path=destination
+        )
+
+    else:
+        print(
+            "Unsupported source format. Use .xml, .aaf, or .prproj.",
+            file=sys.stderr,
+        )
+        return
 
     src_size_with_ignored = sum(
         [get_file_size_with_retry(str(src_file), 1, 0) for src_file in source_paths_to_process]

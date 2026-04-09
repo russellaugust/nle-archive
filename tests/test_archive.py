@@ -1,6 +1,7 @@
 import archive_nle as a
 import search as s
 import unittest, pytest
+import gzip
 from pathlib import Path
 from typing import List
 from unittest.mock import patch
@@ -192,3 +193,77 @@ def test_determine_destination_heiarchy(tmp_path: Path):
     
 def test_copy_files_shutil():
     assert 1 == 1
+
+
+def test_is_gzip_file_detects_prproj_fixture():
+    prproj_path = Path("tests/prproj/SHORT_SEQUENCE_FOR_FILEPATH_ANALYSIS.prproj")
+    assert s.is_gzip_file(prproj_path) is True
+
+
+def test_filepaths_from_prproj_has_strong_overlap_with_xml_fixture():
+    prproj_path = Path("tests/prproj/SHORT_SEQUENCE_FOR_FILEPATH_ANALYSIS.prproj")
+    xml_path = Path("tests/prproj/SHORT_SEQUENCE_FOR_FILEPATH_ANALYSIS.xml")
+
+    prproj_paths = set(s.filepaths_from_prproj(prproj_path))
+    xml_paths = set(s.filepaths_from_xml(str(xml_path)))
+
+    assert len(prproj_paths) > 0
+    overlap = prproj_paths & xml_paths
+    overlap_ratio = len(overlap) / len(prproj_paths)
+    assert overlap_ratio >= 0.8
+
+
+def test_filepaths_from_prproj_ignore_paths_filtering():
+    prproj_path = Path("tests/prproj/SHORT_SEQUENCE_FOR_FILEPATH_ANALYSIS.prproj")
+    ignored_prefix = "/Volumes/jobs/GPWR1/02_post/vfx/tools/"
+
+    filtered_paths = s.filepaths_from_prproj(prproj_path, ignore_paths=[ignored_prefix])
+
+    assert all(not path.startswith(ignored_prefix) for path in filtered_paths)
+    assert any("/Volumes/jobs/GPWR1/02_post/media/" in path for path in filtered_paths)
+
+
+def test_filepaths_from_prproj_fallback_on_malformed_project(tmp_path: Path):
+    malformed_prproj = tmp_path / "malformed.prproj"
+    malformed_content = (
+        "<PremiereProject>"
+        "<FilePath>/Volumes/jobs/GPWR1/clipA.mov</FilePath>"
+        "<ActualMediaFilePath>/Volumes/jobs/GPWR1/clipB.mov</ActualMediaFilePath>"
+        "<UnclosedTag>"
+    )
+
+    with gzip.open(malformed_prproj, "wt", encoding="utf-8") as handle:
+        handle.write(malformed_content)
+
+    with pytest.warns(RuntimeWarning, match="Project parse failed"):
+        paths = s.filepaths_from_prproj(malformed_prproj)
+
+    assert "/Volumes/jobs/GPWR1/clipA.mov" in paths
+    assert "/Volumes/jobs/GPWR1/clipB.mov" in paths
+
+
+def test_main_dispatches_prproj_with_hierarchical_copy(tmp_path: Path):
+    source = tmp_path / "sample.prproj"
+    source.touch()
+    destination = tmp_path / "archive"
+    destination.mkdir()
+
+    args = a.argparse.Namespace(
+        source=source,
+        destination=destination,
+        exclude_directories=None,
+        placeholder=True,
+    )
+
+    source_files = [Path("/Volumes/jobs/GPWR1/02_post/media/example.mov")]
+
+    with patch("archive_nle.parse_arguments", return_value=args), \
+        patch("archive_nle.search.filepaths_from_prproj", return_value=source_files) as mock_extract, \
+        patch("archive_nle.uncopied_files", return_value=source_files), \
+        patch("archive_nle.get_file_size_with_retry", return_value=0), \
+        patch("archive_nle.copy_files_shutil") as mock_copy, \
+        patch("builtins.input", return_value="y"):
+        a.main()
+
+    mock_extract.assert_called_once_with(prproj_path=source, ignore_paths=None)
+    assert mock_copy.call_args.kwargs["flat"] is False

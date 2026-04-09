@@ -1,0 +1,14 @@
+﻿Translation issue:
+	Sequence <Reel10_v10.0_260407_2000> at , audio track 4: Effect <Internal Channel Volume Stereo> on Clip <01 - Bank Robbery (Prologue).mp3> not translated.
+Translation issue:
+	Sequence <Reel10_v10.0_260407_2000> at , audio track 5: Effect <Internal Channel Volume Stereo> on Clip <01 - Bank Robbery (Prologue).mp3> not translated.
+Translation issue:
+	Sequence <Reel10_v10.0_260407_2000> at , audio track 6: Effect <Internal Channel Volume Stereo> on Clip <Wind Sparkle Ambience Sound Effect.mp4> not translated.
+Translation issue:
+	Sequence <Reel10_v10.0_260407_2000> at , audio track 7: Effect <Internal Channel Volume Stereo> on Clip <Fire Flames With Heavy Crackle Sound Effect.mp4> not translated.
+Translation issue:
+	Sequence <Reel10_v10.0_260407_2000> at , audio track 11: Effect <Internal Channel Volume Stereo> on Clip <BW_Reel10_v20260405_RJFAUDIO.wav> not translated.
+Translation issue:
+	Sequence <Reel10_v10.0_260407_2000> at , audio track 12: Effect <Internal Channel Volume Stereo> on Clip <06 The Veiled Bloodline.mp3> not translated.
+Translation issue:
+	Sequence <Reel10_v10.0_260407_2000> at , audio track 13: Effect <Internal Channel Volume Stereo> on Clip <06 The Veiled Bloodline.mp3> not translated.

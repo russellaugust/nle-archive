@@ -2,7 +2,7 @@
 
 ## Overview
 
-`archive_nle` is a Python module used in film post-production environments for archiving final sequences. It facilitates the consolidation of media files referenced in AAF (for Avid) or XML (for Premiere) files to a singular location, thereby enabling easy reconstruction of projects using the respective AAF or XML files.
+`archive_nle` is a Python module used in film post-production environments for archiving final sequences. It facilitates the consolidation of media files referenced in AAF (for Avid), XML (for Premiere), or Premiere project files (`.prproj`) to a singular location, thereby enabling easy reconstruction of projects using the respective source file.
 
 ## Features
 
@@ -37,10 +37,10 @@ You'll need to `pip install pyaaf2` if you want to use the AAF archival.
 1. **Command-Line Execution**: Run the `archive_nle` script with necessary command-line arguments:
 
     ```bash
-    python archive_nle.py -s /path/to/source.xml -d /path/to/destination -e /path/to/exclude1 /path/to/exclude2
+    python archive_nle.py -s /path/to/source.prproj -d /path/to/destination -e /path/to/exclude1 /path/to/exclude2
     ```
    
-   - `-s` or `--source`: Required. The path to the source XML or AAF file.
+    - `-s` or `--source`: Required. The path to the source XML, AAF, or PRPROJ file.
    - `-d` or `--destination`: Required. The destination path for the copied media.
    - `-e` or `--exclude_directories`: Paths to be excluded from the copy process.
 
@@ -50,7 +50,7 @@ You'll need to `pip install pyaaf2` if you want to use the AAF archival.
 
 The script supports the following command-line arguments:
 
-- `-s, --source`: Path to the source XML or AAF file (required).
+- `-s, --source`: Path to the source XML, AAF, or PRPROJ file (required).
 - `-d, --destination`: Destination path for media (required).
 - `-e, --exclude_directories`: Space-separated list of paths to exclude from copying.
 
