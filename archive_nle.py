@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Sequence
 import os, math, argparse
 from shutil import copy2
 import search
@@ -31,16 +31,16 @@ def filenames_in_path(path: Path, extensions: List[str]):
     return dst_files
 
 
-def uncopiedfiles_directoryagnostic(src_paths: List[Path], dst_path: Path) -> List[str]:
+def uncopiedfiles_directoryagnostic(src_paths: Sequence[Path | str], dst_path: Path) -> List[Path]:
     # Get all files in the destination base path
     dst = filenames_in_path(dst_path, ["*"])
 
     # Ensure src_paths contains Path objects
-    src_paths = [Path(src) for src in src_paths]
+    source_paths = [Path(src) for src in src_paths]
 
     # Go through source files, if any file names don't match, add to copy_list
-    copy_list = []
-    for src in src_paths:
+    copy_list: List[Path] = []
+    for src in source_paths:
         if src.name in dst:
             pass
         else:
@@ -59,12 +59,12 @@ def file_exists(dst_file: Path) -> bool:
     return dst_file.exists()
 
 
-def uncopied_files(src_files: List[Path], dst_path: Path) -> List[Path]:
+def uncopied_files(src_files: Sequence[Path | str], dst_path: Path) -> List[Path]:
     """Get a list of source files that have not been copied."""
     files_to_copy = [
         Path(src_path)
         for src_path in src_files
-        if not file_exists(destination_path(src_path, dst_path))
+        if not file_exists(destination_path(Path(src_path), dst_path))
     ]
     return files_to_copy
 
@@ -80,32 +80,41 @@ def determine_destination(src: Path, base_dst: Path, flat: bool) -> Path:
     return base_dst / src.relative_to("/Volumes")
 
 
-def copy_file(src: Path, dst: Path, dry_run=False):
-    """Copies file and creates necessary folders."""
-    if dry_run:
-        pass
-    else:
-        ensure_folder_exists(dst.parent)
-        copy2(src, dst)
+def copy_file(src: Path, dst: Path, placeholder: bool = False):
+    """Copies file or creates a placeholder file at destination."""
+    ensure_folder_exists(dst.parent)
+    if placeholder:
+        dst.touch(exist_ok=True)
+        return
+    copy2(src, dst)
 
 
-def copy_files_shutil(src_paths: List[Path], dst_path: Path, flat: bool = False):
+def copy_files_shutil(
+    src_paths: Sequence[Path | str],
+    dst_path: Path,
+    flat: bool = False,
+    placeholder: bool = False,
+):
     """Performs copy to new location."""
     # Revise the destination folder path if structure is flat
     date = datetime.now().strftime("%y%m%d%H%M%S")
     dst_path = dst_path / date if flat else dst_path
 
     for src in src_paths:
+        src = Path(src)
         dst = determine_destination(src, dst_path, flat)
 
         # skip files that already exist.
         if dst.exists():
             print("File exists, skipping.")
         else:
-            print(f"copying from : {src}\ncopying to   : {dst}")
+            if placeholder:
+                print(f"creating placeholder from : {src}\ncreating placeholder at   : {dst}")
+            else:
+                print(f"copying from : {src}\ncopying to   : {dst}")
 
             try:
-                copy_file(src, dst, dry_run=False)
+                copy_file(src, dst, placeholder=placeholder)
             except Exception as e:
                 with open("failed.log", "a") as f:
                     f.write(f"failed to write from: {src}\n")
@@ -154,6 +163,13 @@ def parse_arguments():
         help="paths to exclude from copy.",
     )
 
+    parser.add_argument(
+        "-p",
+        "--placeholder",
+        action="store_true",
+        help="create destination structure with placeholder files instead of copying media.",
+    )
+
     args = parser.parse_args()
 
     if args.source.is_file() == False:
@@ -196,6 +212,7 @@ def main():
     source = args.source
     destination = args.destination
     ignore_paths = args.exclude_directories
+    placeholder = args.placeholder
 
     source_paths_to_process = []
     source_uncopied = []
@@ -239,7 +256,10 @@ def main():
         name = input("Okay to proceed? Y / N: ")
         if name.lower() == "y":
             copy_files_shutil(
-                src_paths=source_uncopied, dst_path=destination, flat=flat
+                src_paths=source_uncopied,
+                dst_path=destination,
+                flat=flat,
+                placeholder=placeholder,
             )
             ready = True
         elif name.lower() == "n":
