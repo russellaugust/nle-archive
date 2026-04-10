@@ -73,7 +73,7 @@ def extract_files_from_aaf(aaf_path: str) -> List[str]:
 
 
 def unquoted_path_from_url(url: str) -> str:
-    """Extract the filesystem path from a file URL and ensure it starts with /Volumes."""
+    """Extract the filesystem path from a file URL, preserving the original root."""
     parsed_url = urlparse(url)
     path = unquote(parsed_url.path)
 
@@ -82,10 +82,6 @@ def unquoted_path_from_url(url: str) -> str:
 
     if parsed_url.netloc and parsed_url.netloc.lower() not in {"", "localhost"}:
         return f"//{parsed_url.netloc}{path}"
-
-    # Ensure the path starts with /Volumes
-    if not path.startswith('/Volumes/'):
-        path = '/Volumes' + path
 
     return path
 

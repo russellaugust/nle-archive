@@ -267,3 +267,244 @@ def test_main_dispatches_prproj_with_hierarchical_copy(tmp_path: Path):
 
     mock_extract.assert_called_once_with(prproj_path=source, ignore_paths=None)
     assert mock_copy.call_args.kwargs["flat"] is False
+
+
+# ---------------------------------------------------------------------------
+# make_archive_relative
+# ---------------------------------------------------------------------------
+
+
+def test_make_archive_relative_volumes_path():
+    result = a.make_archive_relative(Path("/Volumes/raid1/dailies/test.mov"))
+    assert result == Path("raid1/dailies/test.mov")
+
+
+def test_make_archive_relative_users_path():
+    result = a.make_archive_relative(Path("/Users/russell/Dropbox/media/test.mov"))
+    assert result == Path("Users/russell/Dropbox/media/test.mov")
+
+
+def test_make_archive_relative_other_root():
+    result = a.make_archive_relative(Path("/mnt/storage/project/clip.mov"))
+    assert result == Path("mnt/storage/project/clip.mov")
+
+
+def test_make_archive_relative_bare_filename():
+    result = a.make_archive_relative(Path("clip.mov"))
+    assert result == Path("clip.mov")
+
+
+# ---------------------------------------------------------------------------
+# unquoted_path_from_url – non-/Volumes paths
+# ---------------------------------------------------------------------------
+
+
+def test_path_from_url_users():
+    source = "file://localhost/Users/russell/Dropbox/media/My%20Clip.mov"
+    result = s.unquoted_path_from_url(source)
+    assert result == "/Users/russell/Dropbox/media/My Clip.mov"
+
+
+def test_path_from_url_no_host():
+    source = "file:///Volumes/Media/clip.mov"
+    result = s.unquoted_path_from_url(source)
+    assert result == "/Volumes/Media/clip.mov"
+
+
+def test_path_from_url_users_no_host():
+    source = "file:///Users/russell/Dropbox/clip.mov"
+    result = s.unquoted_path_from_url(source)
+    assert result == "/Users/russell/Dropbox/clip.mov"
+
+
+# ---------------------------------------------------------------------------
+# normalize_lookup_path – non-/Volumes file URLs
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_lookup_path_users_url():
+    url = "file://localhost/Users/russell/Dropbox/media/clip.mov"
+    result = s.normalize_lookup_path(url)
+    assert result == "/Users/russell/Dropbox/media/clip.mov"
+
+
+def test_normalize_lookup_path_volumes_url():
+    url = "file://localhost/Volumes/Media/clip.mov"
+    result = s.normalize_lookup_path(url)
+    assert result == "/Volumes/Media/clip.mov"
+
+
+def test_normalize_lookup_path_plain_users_path():
+    result = s.normalize_lookup_path("/Users/russell/media/clip.mov")
+    assert result == "/Users/russell/media/clip.mov"
+
+
+# ---------------------------------------------------------------------------
+# destination_path – non-/Volumes paths
+# ---------------------------------------------------------------------------
+
+
+def test_get_destination_path_users(tmp_path: Path):
+    result = a.destination_path(
+        Path("/Users/russell/Dropbox/media/clip.mov"), tmp_path
+    )
+    assert result == tmp_path / "Users" / "russell" / "Dropbox" / "media" / "clip.mov"
+
+
+def test_get_destination_path_volumes_unchanged(tmp_path: Path):
+    """Ensure existing /Volumes behaviour is preserved."""
+    result = a.destination_path(
+        Path("/Volumes/raid1/dailies/test.mov"), tmp_path
+    )
+    assert result == tmp_path / "raid1" / "dailies" / "test.mov"
+
+
+# ---------------------------------------------------------------------------
+# determine_destination – non-/Volumes paths
+# ---------------------------------------------------------------------------
+
+
+def test_determine_destination_hierarchy_users(tmp_path: Path):
+    src = Path("/Users/russell/Dropbox/media/clip.mov")
+    result = a.determine_destination(src, tmp_path, flat=False)
+    assert result == tmp_path / "Users" / "russell" / "Dropbox" / "media" / "clip.mov"
+
+
+def test_determine_destination_flat_users(tmp_path: Path):
+    src = Path("/Users/russell/Dropbox/media/clip.mov")
+    result = a.determine_destination(src, tmp_path, flat=True)
+    assert result == tmp_path / "clip.mov"
+
+
+def test_determine_destination_hierarchy_volumes_unchanged(tmp_path: Path):
+    """Existing /Volumes behaviour preserved."""
+    src = Path("/Volumes/Media/MyProject/clip.mov")
+    result = a.determine_destination(src, tmp_path, flat=False)
+    assert result == tmp_path / "Media" / "MyProject" / "clip.mov"
+
+
+# ---------------------------------------------------------------------------
+# uncopied_files – non-/Volumes paths
+# ---------------------------------------------------------------------------
+
+
+def test_uncopied_files_users_paths(tmp_path: Path):
+    """Files under /Users should NOT falsely appear as already copied."""
+    srcs = [
+        Path("/Users/russell/media/clip1.mov"),
+        Path("/Users/russell/media/clip2.mov"),
+    ]
+    # Nothing exists under tmp_path so both should be uncopied
+    result = a.uncopied_files(srcs, tmp_path)
+    assert set(result) == set(srcs)
+
+
+def test_uncopied_files_users_paths_some_exist(tmp_path: Path):
+    """When a destination file already exists, it should be excluded."""
+    srcs = [
+        Path("/Users/russell/media/clip1.mov"),
+        Path("/Users/russell/media/clip2.mov"),
+    ]
+    # Create the destination for clip1 so it appears copied
+    dst_clip1 = tmp_path / "Users" / "russell" / "media" / "clip1.mov"
+    dst_clip1.parent.mkdir(parents=True, exist_ok=True)
+    dst_clip1.touch()
+
+    result = a.uncopied_files(srcs, tmp_path)
+    assert result == [Path("/Users/russell/media/clip2.mov")]
+
+
+# ---------------------------------------------------------------------------
+# End-to-end: XML with /Users paths
+# ---------------------------------------------------------------------------
+
+
+def test_extract_pathurls_from_xml_users_paths(tmp_path: Path):
+    """XML containing file URLs under /Users should produce /Users paths."""
+    xml_content = """<?xml version="1.0" encoding="UTF-8"?>
+<xmeml version="5">
+  <sequence>
+    <media>
+      <file>
+        <pathurl>file://localhost/Users/russell/Dropbox/media/clip%20A.mov</pathurl>
+      </file>
+      <file>
+        <pathurl>file://localhost/Users/russell/Dropbox/media/clip%20B.mov</pathurl>
+      </file>
+    </media>
+  </sequence>
+</xmeml>"""
+
+    xml_file = tmp_path / "test.xml"
+    xml_file.write_text(xml_content, encoding="utf-8")
+
+    result = s.filepaths_from_xml(str(xml_file))
+    assert "/Users/russell/Dropbox/media/clip A.mov" in result
+    assert "/Users/russell/Dropbox/media/clip B.mov" in result
+    # Ensure /Volumes is NOT wrongly prepended
+    assert not any("/Volumes/Users" in p for p in result)
+
+
+# ---------------------------------------------------------------------------
+# End-to-end: PRPROJ with /Users paths
+# ---------------------------------------------------------------------------
+
+
+def test_filepaths_from_prproj_users_paths(tmp_path: Path):
+    """PRPROJ with media under /Users should produce correct paths."""
+    content = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        "<PremiereData>\n"
+        "  <FilePath>/Users/russell/Dropbox/media/clip.mov</FilePath>\n"
+        "  <ActualMediaFilePath>/Users/russell/Dropbox/media/clip.mov</ActualMediaFilePath>\n"
+        "  <pathurl>file://localhost/Users/russell/Dropbox/media/clip%20B.mov</pathurl>\n"
+        "</PremiereData>\n"
+    )
+
+    prproj = tmp_path / "test.prproj"
+    with gzip.open(prproj, "wt", encoding="utf-8") as handle:
+        handle.write(content)
+
+    paths = s.filepaths_from_prproj(prproj)
+    assert "/Users/russell/Dropbox/media/clip.mov" in paths
+    assert "/Users/russell/Dropbox/media/clip B.mov" in paths
+    assert not any("/Volumes/Users" in p for p in paths)
+
+
+# ---------------------------------------------------------------------------
+# Integration: main() with /Users media through XML source
+# ---------------------------------------------------------------------------
+
+
+def test_main_xml_users_paths(tmp_path: Path):
+    """XML source with /Users paths should compute sizes without errors."""
+    xml_content = """<?xml version="1.0" encoding="UTF-8"?>
+<xmeml version="5">
+  <sequence>
+    <media>
+      <file>
+        <pathurl>file://localhost/Users/russell/media/clip.mov</pathurl>
+      </file>
+    </media>
+  </sequence>
+</xmeml>"""
+    src = tmp_path / "test.xml"
+    src.write_text(xml_content, encoding="utf-8")
+    destination = tmp_path / "archive"
+    destination.mkdir()
+
+    args = a.argparse.Namespace(
+        source=src,
+        destination=destination,
+        exclude_directories=None,
+        placeholder=True,
+    )
+
+    with patch("archive_nle.parse_arguments", return_value=args), \
+        patch("archive_nle.get_file_size_with_retry", return_value=100), \
+        patch("archive_nle.copy_files_shutil") as mock_copy, \
+        patch("builtins.input", return_value="y"):
+        a.main()
+
+    # Should reach copy with flat=False (XML default)
+    assert mock_copy.call_args.kwargs["flat"] is False

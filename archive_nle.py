@@ -49,10 +49,25 @@ def uncopiedfiles_directoryagnostic(src_paths: Sequence[Path | str], dst_path: P
     return copy_list
 
 
+def make_archive_relative(src_file: Path) -> Path:
+    """Strip the root prefix from an absolute path for archive mirroring.
+
+    /Volumes/DriveA/foo  -> DriveA/foo
+    /Users/russell/foo   -> Users/russell/foo
+    """
+    parts = src_file.parts
+    # Skip the filesystem root ("/") and, for /Volumes paths, also skip
+    # the "Volumes" mount-point directory so the drive name comes first.
+    if len(parts) > 2 and parts[1] == "Volumes":
+        return Path(*parts[2:])
+    if len(parts) > 1:
+        return Path(*parts[1:])
+    return Path(src_file.name)
+
+
 def destination_path(src_file: Path, base_path: Path) -> Path:
     """Transforms the source path into a destination path."""
-    relative_path = str(src_file).split("/Volumes/", 1)[-1]
-    return base_path / Path(relative_path)
+    return base_path / make_archive_relative(src_file)
 
 
 def file_exists(dst_file: Path) -> bool:
@@ -78,7 +93,7 @@ def determine_destination(src: Path, base_dst: Path, flat: bool) -> Path:
     """Determine the destination path."""
     if flat:
         return base_dst / src.name
-    return base_dst / src.relative_to("/Volumes")
+    return base_dst / make_archive_relative(src)
 
 
 def copy_file(src: Path, dst: Path, placeholder: bool = False):
