@@ -1,4 +1,4 @@
-from typing import List, Sequence
+from typing import List, Sequence, Union
 import os, math, argparse
 import sys
 from shutil import copy2
@@ -32,7 +32,7 @@ def filenames_in_path(path: Path, extensions: List[str]):
     return dst_files
 
 
-def uncopiedfiles_directoryagnostic(src_paths: Sequence[Path | str], dst_path: Path) -> List[Path]:
+def uncopiedfiles_directoryagnostic(src_paths: Sequence[Union[Path, str]], dst_path: Path) -> List[Path]:
     # Get all files in the destination base path
     dst = filenames_in_path(dst_path, ["*"])
 
@@ -75,7 +75,7 @@ def file_exists(dst_file: Path) -> bool:
     return dst_file.exists()
 
 
-def uncopied_files(src_files: Sequence[Path | str], dst_path: Path) -> List[Path]:
+def uncopied_files(src_files: Sequence[Union[Path, str]], dst_path: Path) -> List[Path]:
     """Get a list of source files that have not been copied."""
     files_to_copy = [
         Path(src_path)
@@ -106,7 +106,7 @@ def copy_file(src: Path, dst: Path, placeholder: bool = False):
 
 
 def copy_files_shutil(
-    src_paths: Sequence[Path | str],
+    src_paths: Sequence[Union[Path, str]],
     dst_path: Path,
     flat: bool = False,
     placeholder: bool = False,

@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple, Union
 import gzip
 import html
 import io
@@ -177,7 +177,7 @@ def normalize_lookup_path(path_value: str) -> str:
     return posixpath.normpath(value)
 
 
-def _find_next_premiere_tag_start(buffer: str, start: int) -> tuple[int, str] | None:
+def _find_next_premiere_tag_start(buffer: str, start: int) -> Optional[Tuple[int, str]]:
     best_index = -1
     best_tag = ""
     for tag, open_tag in PREMIERE_OPEN_TAGS.items():
@@ -267,7 +267,7 @@ def extract_premiere_paths_from_project(project_path: Path) -> List[str]:
     return extracted_paths
 
 
-def filepaths_from_prproj(prproj_path: str | Path,
+def filepaths_from_prproj(prproj_path: Union[str, Path],
                           ignore_paths: Optional[List[str]] = None) -> List[str]:
     """Returns list of unique file paths from a Premiere .prproj file."""
     ignore_paths = ignore_paths or []
