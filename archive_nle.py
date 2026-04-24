@@ -11,6 +11,8 @@ import logging
 
 logging.basicConfig(filename="example.log", filemode="a", level=logging.DEBUG)
 
+SUPPORTED_SOURCE_SUFFIXES = {".xml", ".aaf", ".prproj"}
+
 def log_file_operation(file_path: Path, operation: str):
     logging.debug(f"{operation}: {file_path}")
 
@@ -147,6 +149,88 @@ def dir_path(string):
         raise NotADirectoryError(export)
 
 
+def source_suffixes(sources: Sequence[Union[Path, str]]) -> set[str]:
+    return {Path(source).suffix.lower() for source in sources}
+
+
+def validate_source_file_types(sources: Sequence[Union[Path, str]]) -> str:
+    suffixes = source_suffixes(sources)
+    unsupported_suffixes = sorted(
+        suffix for suffix in suffixes if suffix not in SUPPORTED_SOURCE_SUFFIXES
+    )
+
+    if unsupported_suffixes:
+        supported_suffixes = ", ".join(sorted(SUPPORTED_SOURCE_SUFFIXES))
+        raise ValueError(
+            f"Unsupported source format(s): {', '.join(unsupported_suffixes)}. "
+            f"Use only {supported_suffixes}."
+        )
+
+    if len(suffixes) != 1:
+        supported_suffixes = ", ".join(sorted(SUPPORTED_SOURCE_SUFFIXES))
+        raise ValueError(
+            "All source files must use the same format. "
+            f"Use only one of: {supported_suffixes}."
+        )
+
+    return next(iter(suffixes))
+
+
+def unique_source_paths(paths: Sequence[Union[Path, str]]) -> List[Path]:
+    unique_paths: List[Path] = []
+    seen_paths = set()
+
+    for path in paths:
+        normalized_path = Path(path)
+        path_key = str(normalized_path)
+        if path_key in seen_paths:
+            continue
+        seen_paths.add(path_key)
+        unique_paths.append(normalized_path)
+
+    return unique_paths
+
+
+def extract_source_media_paths(
+    source: Path,
+    ignore_paths: Union[Sequence[str], None],
+) -> List[Path]:
+    source_suffix = source.suffix.lower()
+    ignore_paths_list = list(ignore_paths) if ignore_paths is not None else None
+
+    if source_suffix == ".xml":
+        extracted_paths = search.filepaths_from_xml(
+            xml_path=str(source), ignore_paths=ignore_paths_list
+        )
+    elif source_suffix == ".aaf":
+        extracted_paths = search.filepaths_from_aaf(
+            aaf_path=str(source), ignore_paths=ignore_paths_list
+        )
+    elif source_suffix == ".prproj":
+        extracted_paths = search.filepaths_from_prproj(
+            prproj_path=source, ignore_paths=ignore_paths_list
+        )
+    else:
+        raise ValueError(
+            "Unsupported source format. Use .xml, .aaf, or .prproj."
+        )
+
+    return [Path(path) for path in extracted_paths]
+
+
+def collect_source_media_paths(
+    sources: Sequence[Path],
+    ignore_paths: Union[Sequence[str], None],
+) -> tuple[str, List[Path]]:
+    source_suffix = validate_source_file_types(sources)
+
+    combined_paths: List[Path] = []
+    for source in sources:
+        combined_paths.extend(extract_source_media_paths(source, ignore_paths))
+
+    return source_suffix, unique_source_paths(combined_paths)
+
+
 def parse_arguments():
     # CLI interface
 
@@ -164,8 +248,13 @@ def parse_arguments():
         "-s",
         "--source",
         type=Path,
+        nargs="+",
+        action="append",
         required=True,
-        help="XML, AAF, or PRPROJ file containing project media references.",
+        help=(
+            "One or more XML, AAF, or PRPROJ files containing project media "
+            "references. All source files must use the same format."
+        ),
     )
 
     parser.add_argument(
@@ -193,11 +282,18 @@ def parse_arguments():
 
     args = parser.parse_args()
 
-    if args.source.is_file() == False:
-        parser.error("The source must be a file.")
+    args.source = [source for source_group in args.source for source in source_group]
+
+    if any(source.is_file() == False for source in args.source):
+        parser.error("Every source must be a file.")
     elif args.destination.is_dir() == False:
         parser.error("The destination must be a directory.")
     else:
+        try:
+            validate_source_file_types(args.source)
+        except ValueError as error:
+            parser.error(str(error))
+
         return args
 
 
@@ -230,7 +326,7 @@ def get_file_size_with_retry(file_path: str, retries: int = 3, delay: float = 1.
 def main():
     args = parse_arguments()
 
-    source = args.source
+    sources = args.source
     destination = args.destination
     ignore_paths = args.exclude_directories
     placeholder = args.placeholder
@@ -238,45 +334,25 @@ def main():
     source_paths_to_process = []
     source_uncopied = []
     flat = False
-    source_suffix = source.suffix.lower()
 
-    if source_suffix == ".xml":
-        # source paths excluding ignored pathes
-        source_paths_to_process = search.filepaths_from_xml(
-            xml_path=source, ignore_paths=ignore_paths
+    try:
+        source_suffix, source_paths_to_process = collect_source_media_paths(
+            sources=sources,
+            ignore_paths=ignore_paths,
         )
+    except ValueError as error:
+        print(str(error), file=sys.stderr)
+        return
 
-        # source paths of only files that need to be copied
-        source_uncopied = uncopied_files(
-            src_files=source_paths_to_process, dst_path=destination
-        )
-
-    elif source_suffix == ".aaf":
-        # source paths excluding ignored pathes
-        source_paths_to_process = search.filepaths_from_aaf(
-            aaf_path=source, ignore_paths=ignore_paths
-        )
-
+    if source_suffix == ".aaf":
         source_uncopied = uncopiedfiles_directoryagnostic(
             src_paths=source_paths_to_process, dst_path=destination
         )
         flat = True
-
-    elif source_suffix == ".prproj":
-        source_paths_to_process = search.filepaths_from_prproj(
-            prproj_path=source, ignore_paths=ignore_paths
-        )
-
+    else:
         source_uncopied = uncopied_files(
             src_files=source_paths_to_process, dst_path=destination
         )
-
-    else:
-        print(
-            "Unsupported source format. Use .xml, .aaf, or .prproj.",
-            file=sys.stderr,
-        )
-        return
 
     src_size_with_ignored = sum(
         [get_file_size_with_retry(str(src_file), 1, 0) for src_file in source_paths_to_process]

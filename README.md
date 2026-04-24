@@ -39,8 +39,14 @@ You'll need to `pip install pyaaf2` if you want to use the AAF archival.
     ```bash
     python archive_nle.py -s /path/to/source.prproj -d /path/to/destination -e /path/to/exclude1 /path/to/exclude2
     ```
+
+    You can also pass multiple source files in one run, as long as they all use the same source format:
+
+    ```bash
+    python archive_nle.py -s /path/to/sequence_a.prproj /path/to/sequence_b.prproj -d /path/to/destination
+    ```
    
-    - `-s` or `--source`: Required. The path to the source XML, AAF, or PRPROJ file.
+    - `-s` or `--source`: Required. One or more source XML, AAF, or PRPROJ files. All source files must use the same format.
    - `-d` or `--destination`: Required. The destination path for the copied media.
    - `-e` or `--exclude_directories`: Paths to be excluded from the copy process.
 
@@ -50,7 +56,7 @@ You'll need to `pip install pyaaf2` if you want to use the AAF archival.
 
 The script supports the following command-line arguments:
 
-- `-s, --source`: Path to the source XML, AAF, or PRPROJ file (required).
+- `-s, --source`: One or more source XML, AAF, or PRPROJ files (required). Mixed source types are not supported in the same run.
 - `-d, --destination`: Destination path for media (required).
 - `-e, --exclude_directories`: Space-separated list of paths to exclude from copying.
 

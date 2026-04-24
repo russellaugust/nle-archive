@@ -26,10 +26,28 @@ def test_parse_arguments_input_variables_are_cast_accurately():
              
              args = a.parse_arguments()
              
-             assert args.source == Path('some_source.xml')
+             assert args.source == [Path('some_source.xml')]
              assert args.destination == Path('/some/destination')
              assert '/path/to/exclude1' in args.exclude_directories
              assert '/path/to/exclude2' in args.exclude_directories
+
+
+def test_parse_arguments_accepts_multiple_sources_of_same_type():
+    with patch('sys.argv', ['archive aaf xml', '-s', 'one.xml', 'two.xml', '-d', '/some/destination']), \
+         patch('archive_nle.Path.is_file', return_value=True), \
+         patch('archive_nle.Path.is_dir', return_value=True):
+
+             args = a.parse_arguments()
+
+             assert args.source == [Path('one.xml'), Path('two.xml')]
+
+
+def test_parse_arguments_rejects_mixed_source_types():
+    with patch('sys.argv', ['archive aaf xml', '-s', 'one.xml', 'two.prproj', '-d', '/some/destination']), \
+         patch('archive_nle.Path.is_file', return_value=True), \
+         patch('archive_nle.Path.is_dir', return_value=True), \
+         pytest.raises(SystemExit):
+             a.parse_arguments()
 
 def test_parse_arguments_invalid_directory():
     # Mock the command-line arguments
@@ -249,7 +267,7 @@ def test_main_dispatches_prproj_with_hierarchical_copy(tmp_path: Path):
     destination.mkdir()
 
     args = a.argparse.Namespace(
-        source=source,
+        source=[source],
         destination=destination,
         exclude_directories=None,
         placeholder=True,
@@ -267,6 +285,73 @@ def test_main_dispatches_prproj_with_hierarchical_copy(tmp_path: Path):
 
     mock_extract.assert_called_once_with(prproj_path=source, ignore_paths=None)
     assert mock_copy.call_args.kwargs["flat"] is False
+
+
+def test_main_aggregates_multiple_xml_sources_and_deduplicates(tmp_path: Path):
+    source_a = tmp_path / "one.xml"
+    source_b = tmp_path / "two.xml"
+    source_a.touch()
+    source_b.touch()
+    destination = tmp_path / "archive"
+    destination.mkdir()
+
+    args = a.argparse.Namespace(
+        source=[source_a, source_b],
+        destination=destination,
+        exclude_directories=None,
+        placeholder=True,
+    )
+
+    clip_a = Path("/Volumes/jobs/GPWR1/02_post/media/A.mov")
+    clip_b = Path("/Volumes/jobs/GPWR1/02_post/media/B.mov")
+    clip_c = Path("/Volumes/jobs/GPWR1/02_post/media/C.mov")
+    deduped_clips = [clip_a, clip_b, clip_c]
+
+    with patch("archive_nle.parse_arguments", return_value=args), \
+        patch("archive_nle.search.filepaths_from_xml", side_effect=[[clip_a, clip_b], [clip_b, clip_c]]) as mock_extract, \
+        patch("archive_nle.uncopied_files", return_value=deduped_clips) as mock_uncopied, \
+        patch("archive_nle.get_file_size_with_retry", return_value=0), \
+        patch("archive_nle.copy_files_shutil") as mock_copy, \
+        patch("builtins.input", return_value="y"):
+        a.main()
+
+    assert mock_extract.call_count == 2
+    mock_uncopied.assert_called_once_with(src_files=deduped_clips, dst_path=destination)
+    assert mock_copy.call_args.kwargs["src_paths"] == deduped_clips
+    assert mock_copy.call_args.kwargs["flat"] is False
+
+
+def test_main_aggregates_multiple_aaf_sources_with_flat_copy(tmp_path: Path):
+    source_a = tmp_path / "one.aaf"
+    source_b = tmp_path / "two.aaf"
+    source_a.touch()
+    source_b.touch()
+    destination = tmp_path / "archive"
+    destination.mkdir()
+
+    args = a.argparse.Namespace(
+        source=[source_a, source_b],
+        destination=destination,
+        exclude_directories=None,
+        placeholder=True,
+    )
+
+    clip_a = Path("/Volumes/jobs/GPWR1/02_post/media/A.mxf")
+    clip_b = Path("/Volumes/jobs/GPWR1/02_post/media/B.mxf")
+    deduped_clips = [clip_a, clip_b]
+
+    with patch("archive_nle.parse_arguments", return_value=args), \
+        patch("archive_nle.search.filepaths_from_aaf", side_effect=[[clip_a], [clip_a, clip_b]]) as mock_extract, \
+        patch("archive_nle.uncopiedfiles_directoryagnostic", return_value=deduped_clips) as mock_uncopied, \
+        patch("archive_nle.get_file_size_with_retry", return_value=0), \
+        patch("archive_nle.copy_files_shutil") as mock_copy, \
+        patch("builtins.input", return_value="y"):
+        a.main()
+
+    assert mock_extract.call_count == 2
+    mock_uncopied.assert_called_once_with(src_paths=deduped_clips, dst_path=destination)
+    assert mock_copy.call_args.kwargs["src_paths"] == deduped_clips
+    assert mock_copy.call_args.kwargs["flat"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -494,7 +579,7 @@ def test_main_xml_users_paths(tmp_path: Path):
     destination.mkdir()
 
     args = a.argparse.Namespace(
-        source=src,
+        source=[src],
         destination=destination,
         exclude_directories=None,
         placeholder=True,
