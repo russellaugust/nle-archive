@@ -1,4 +1,4 @@
-from typing import List, Sequence, Union
+from typing import List, Optional, Sequence, Tuple, Union
 import os, math, argparse
 import sys
 from shutil import copy2
@@ -12,6 +12,7 @@ import logging
 logging.basicConfig(filename="example.log", filemode="a", level=logging.DEBUG)
 
 SUPPORTED_SOURCE_SUFFIXES = {".xml", ".aaf", ".prproj"}
+PathRewriteRule = Tuple[Path, Path]
 
 def log_file_operation(file_path: Path, operation: str):
     logging.debug(f"{operation}: {file_path}")
@@ -72,17 +73,47 @@ def destination_path(src_file: Path, base_path: Path) -> Path:
     return base_path / make_archive_relative(src_file)
 
 
+def rewrite_destination_path(
+    src_file: Path,
+    rewrite_rules: Optional[Sequence[PathRewriteRule]],
+) -> Optional[Path]:
+    """Return rewritten destination path if the source matches a rewrite rule."""
+    if not rewrite_rules:
+        return None
+
+    for old_root, new_root in rewrite_rules:
+        try:
+            relative_path = src_file.relative_to(old_root)
+        except ValueError:
+            continue
+
+        return new_root / relative_path
+
+    return None
+
+
 def file_exists(dst_file: Path) -> bool:
     """Checks if a file is copied to the destination."""
     return dst_file.exists()
 
 
-def uncopied_files(src_files: Sequence[Union[Path, str]], dst_path: Path) -> List[Path]:
+def uncopied_files(
+    src_files: Sequence[Union[Path, str]],
+    dst_path: Path,
+    rewrite_rules: Optional[Sequence[PathRewriteRule]] = None,
+) -> List[Path]:
     """Get a list of source files that have not been copied."""
     files_to_copy = [
         Path(src_path)
         for src_path in src_files
-        if not file_exists(destination_path(Path(src_path), dst_path))
+        if not file_exists(
+            determine_destination(
+                src=Path(src_path),
+                base_dst=dst_path,
+                flat=False,
+                rewrite_rules=rewrite_rules,
+            )
+        )
     ]
     return files_to_copy
 
@@ -91,10 +122,20 @@ def ensure_folder_exists(folder: Path):
     folder.mkdir(parents=True, exist_ok=True)
 
 
-def determine_destination(src: Path, base_dst: Path, flat: bool) -> Path:
+def determine_destination(
+    src: Path,
+    base_dst: Path,
+    flat: bool,
+    rewrite_rules: Optional[Sequence[PathRewriteRule]] = None,
+) -> Path:
     """Determine the destination path."""
     if flat:
         return base_dst / src.name
+
+    rewritten_dst = rewrite_destination_path(src, rewrite_rules)
+    if rewritten_dst is not None:
+        return rewritten_dst
+
     return base_dst / make_archive_relative(src)
 
 
@@ -112,6 +153,7 @@ def copy_files_shutil(
     dst_path: Path,
     flat: bool = False,
     placeholder: bool = False,
+    rewrite_rules: Optional[Sequence[PathRewriteRule]] = None,
 ):
     """Performs copy to new location."""
     # Revise the destination folder path if structure is flat
@@ -120,7 +162,7 @@ def copy_files_shutil(
 
     for src in src_paths:
         src = Path(src)
-        dst = determine_destination(src, dst_path, flat)
+        dst = determine_destination(src, dst_path, flat, rewrite_rules=rewrite_rules)
 
         # skip files that already exist.
         if dst.exists():
@@ -280,6 +322,18 @@ def parse_arguments():
         help="create destination structure with placeholder files instead of copying media.",
     )
 
+    parser.add_argument(
+        "--rewrite-root",
+        type=Path,
+        nargs=2,
+        action="append",
+        metavar=("OLD_ROOT", "NEW_ROOT"),
+        help=(
+            "for XML/PRPROJ media paths, copy files by replacing OLD_ROOT with "
+            "NEW_ROOT instead of copying under --destination. Can be used more than once."
+        ),
+    )
+
     args = parser.parse_args()
 
     args.source = [source for source_group in args.source for source in source_group]
@@ -290,9 +344,19 @@ def parse_arguments():
         parser.error("The destination must be a directory.")
     else:
         try:
-            validate_source_file_types(args.source)
+            source_suffix = validate_source_file_types(args.source)
         except ValueError as error:
             parser.error(str(error))
+
+        if args.rewrite_root and source_suffix == ".aaf":
+            parser.error("--rewrite-root only supports XML and PRPROJ sources, not AAF.")
+
+        if args.rewrite_root:
+            for old_root, new_root in args.rewrite_root:
+                if not old_root.is_absolute() or not new_root.is_absolute():
+                    parser.error("--rewrite-root OLD_ROOT and NEW_ROOT must both be absolute paths.")
+                if not new_root.is_dir():
+                    parser.error(f"--rewrite-root NEW_ROOT must be an existing directory: {new_root}")
 
         return args
 
@@ -330,6 +394,7 @@ def main():
     destination = args.destination
     ignore_paths = args.exclude_directories
     placeholder = args.placeholder
+    rewrite_rules = getattr(args, "rewrite_root", None)
 
     source_paths_to_process = []
     source_uncopied = []
@@ -350,9 +415,17 @@ def main():
         )
         flat = True
     else:
-        source_uncopied = uncopied_files(
-            src_files=source_paths_to_process, dst_path=destination
-        )
+        if rewrite_rules:
+            source_uncopied = uncopied_files(
+                src_files=source_paths_to_process,
+                dst_path=destination,
+                rewrite_rules=rewrite_rules,
+            )
+        else:
+            source_uncopied = uncopied_files(
+                src_files=source_paths_to_process,
+                dst_path=destination,
+            )
 
     src_size_with_ignored = sum(
         [get_file_size_with_retry(str(src_file), 1, 0) for src_file in source_paths_to_process]
@@ -369,12 +442,21 @@ def main():
     while ready == False:
         name = input("Okay to proceed? Y / N: ")
         if name.lower() == "y":
-            copy_files_shutil(
-                src_paths=source_uncopied,
-                dst_path=destination,
-                flat=flat,
-                placeholder=placeholder,
-            )
+            if rewrite_rules:
+                copy_files_shutil(
+                    src_paths=source_uncopied,
+                    dst_path=destination,
+                    flat=flat,
+                    placeholder=placeholder,
+                    rewrite_rules=rewrite_rules,
+                )
+            else:
+                copy_files_shutil(
+                    src_paths=source_uncopied,
+                    dst_path=destination,
+                    flat=flat,
+                    placeholder=placeholder,
+                )
             ready = True
         elif name.lower() == "n":
             exit()

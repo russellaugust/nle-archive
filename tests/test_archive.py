@@ -42,6 +42,93 @@ def test_parse_arguments_accepts_multiple_sources_of_same_type():
              assert args.source == [Path('one.xml'), Path('two.xml')]
 
 
+def test_parse_arguments_accepts_rewrite_root_for_xml():
+    with patch(
+        'sys.argv',
+        [
+            'archive aaf xml',
+            '-s',
+            'one.xml',
+            '-d',
+            '/some/destination',
+            '--rewrite-root',
+            '/Volumes/jobs',
+            '/Volumes/primefocus/jobs',
+        ],
+    ), \
+         patch('archive_nle.Path.is_file', return_value=True), \
+         patch('archive_nle.Path.is_dir', return_value=True):
+
+             args = a.parse_arguments()
+
+             assert args.rewrite_root == [
+                 [Path('/Volumes/jobs'), Path('/Volumes/primefocus/jobs')]
+             ]
+
+
+def test_parse_arguments_rejects_rewrite_root_for_aaf():
+    with patch(
+        'sys.argv',
+        [
+            'archive aaf xml',
+            '-s',
+            'one.aaf',
+            '-d',
+            '/some/destination',
+            '--rewrite-root',
+            '/Volumes/jobs',
+            '/Volumes/primefocus/jobs',
+        ],
+    ), \
+         patch('archive_nle.Path.is_file', return_value=True), \
+         patch('archive_nle.Path.is_dir', return_value=True), \
+         pytest.raises(SystemExit):
+
+             a.parse_arguments()
+
+
+def test_parse_arguments_rejects_relative_rewrite_root():
+    with patch(
+        'sys.argv',
+        [
+            'archive aaf xml',
+            '-s',
+            'one.xml',
+            '-d',
+            '/some/destination',
+            '--rewrite-root',
+            'jobs',
+            '/Volumes/primefocus/jobs',
+        ],
+    ), \
+         patch('archive_nle.Path.is_file', return_value=True), \
+         patch('archive_nle.Path.is_dir', return_value=True), \
+         pytest.raises(SystemExit):
+
+             a.parse_arguments()
+
+
+def test_parse_arguments_rejects_missing_rewrite_destination():
+    with patch(
+        'sys.argv',
+        [
+            'archive aaf xml',
+            '-s',
+            'one.xml',
+            '-d',
+            '/some/destination',
+            '--rewrite-root',
+            '/Volumes/jobs',
+            '/Volumes/missing/jobs',
+        ],
+    ), \
+         patch('archive_nle.Path.is_file', return_value=True), \
+         patch('archive_nle.Path.is_dir', side_effect=[True, False]), \
+         pytest.raises(SystemExit):
+
+             a.parse_arguments()
+
+
 def test_parse_arguments_rejects_mixed_source_types():
     with patch('sys.argv', ['archive aaf xml', '-s', 'one.xml', 'two.prproj', '-d', '/some/destination']), \
          patch('archive_nle.Path.is_file', return_value=True), \
@@ -61,6 +148,24 @@ def test_get_destination_path():
     x = a.destination_path(Path('/Volumes/raid1/dailies/test.mov'), 
                            Path('/Volumes/raid2/'))
     assert x == Path('/Volumes/raid2/raid1/dailies/test.mov')
+
+
+def test_rewrite_destination_path_matches_path_root():
+    src = Path('/Volumes/jobs/GPWR1/02_post/media/test.mov')
+    rewrite_rules = [(Path('/Volumes/jobs'), Path('/Volumes/primefocus/jobs'))]
+
+    result = a.rewrite_destination_path(src, rewrite_rules)
+
+    assert result == Path('/Volumes/primefocus/jobs/GPWR1/02_post/media/test.mov')
+
+
+def test_rewrite_destination_path_does_not_match_partial_root_name():
+    src = Path('/Volumes/jobs_backup/GPWR1/02_post/media/test.mov')
+    rewrite_rules = [(Path('/Volumes/jobs'), Path('/Volumes/primefocus/jobs'))]
+
+    result = a.rewrite_destination_path(src, rewrite_rules)
+
+    assert result is None
     
 def test_is_file_copied_not():
     assert a.file_exists(Path('/Volumes/raid1/dailies/test.mov')) == False
@@ -82,6 +187,21 @@ def test_uncopied_files():
         compare = [Path('/Volumes/raid1/dailies/test1.mov'), Path('/Volumes/raid1/dailies/test2.mov')]
     
         assert uncopied_files == compare
+
+
+def test_uncopied_files_checks_rewritten_destination(tmp_path: Path):
+    src = Path('/Volumes/jobs/GPWR1/02_post/media/test.mov')
+    rewritten_dst = tmp_path / 'primefocus' / 'jobs' / 'GPWR1' / '02_post' / 'media' / 'test.mov'
+    rewritten_dst.parent.mkdir(parents=True)
+    rewritten_dst.touch()
+
+    result = a.uncopied_files(
+        [src],
+        tmp_path / 'archive',
+        rewrite_rules=[(Path('/Volumes/jobs'), tmp_path / 'primefocus' / 'jobs')],
+    )
+
+    assert result == []
         
     
 def test_get_filelist(tmp_path: Path):
@@ -208,6 +328,36 @@ def test_determine_destination_heiarchy(tmp_path: Path):
     result = a.determine_destination(src_file, dst_path, False)
     assert isinstance(result, Path)
     assert result.name.endswith('2pop_24fps_MyProject.mov')
+
+
+def test_determine_destination_rewrites_matching_root(tmp_path: Path):
+    src_file = Path('/Volumes/jobs/GPWR1/02_post/media/test.mov')
+    dst_path = tmp_path / 'archive'
+    rewrite_rules = [(Path('/Volumes/jobs'), Path('/Volumes/primefocus/jobs'))]
+
+    result = a.determine_destination(src_file, dst_path, False, rewrite_rules=rewrite_rules)
+
+    assert result == Path('/Volumes/primefocus/jobs/GPWR1/02_post/media/test.mov')
+
+
+def test_determine_destination_falls_back_when_rewrite_does_not_match(tmp_path: Path):
+    src_file = Path('/Users/russell/Desktop/test.mov')
+    dst_path = tmp_path / 'archive'
+    rewrite_rules = [(Path('/Volumes/jobs'), Path('/Volumes/primefocus/jobs'))]
+
+    result = a.determine_destination(src_file, dst_path, False, rewrite_rules=rewrite_rules)
+
+    assert result == dst_path / 'Users' / 'russell' / 'Desktop' / 'test.mov'
+
+
+def test_determine_destination_flat_ignores_rewrite_rules(tmp_path: Path):
+    src_file = Path('/Volumes/jobs/GPWR1/02_post/media/test.mov')
+    dst_path = tmp_path / 'archive'
+    rewrite_rules = [(Path('/Volumes/jobs'), Path('/Volumes/primefocus/jobs'))]
+
+    result = a.determine_destination(src_file, dst_path, True, rewrite_rules=rewrite_rules)
+
+    assert result == dst_path / 'test.mov'
     
 def test_copy_files_shutil():
     assert 1 == 1
@@ -318,6 +468,40 @@ def test_main_aggregates_multiple_xml_sources_and_deduplicates(tmp_path: Path):
     assert mock_extract.call_count == 2
     mock_uncopied.assert_called_once_with(src_files=deduped_clips, dst_path=destination)
     assert mock_copy.call_args.kwargs["src_paths"] == deduped_clips
+    assert mock_copy.call_args.kwargs["flat"] is False
+
+
+def test_main_passes_rewrite_rules_for_xml_sources(tmp_path: Path):
+    source = tmp_path / "one.xml"
+    source.touch()
+    destination = tmp_path / "archive"
+    destination.mkdir()
+    rewrite_rules = [(Path("/Volumes/jobs"), tmp_path / "primefocus" / "jobs")]
+
+    args = a.argparse.Namespace(
+        source=[source],
+        destination=destination,
+        exclude_directories=None,
+        placeholder=True,
+        rewrite_root=rewrite_rules,
+    )
+
+    clip = Path("/Volumes/jobs/GPWR1/02_post/media/A.mov")
+
+    with patch("archive_nle.parse_arguments", return_value=args), \
+        patch("archive_nle.search.filepaths_from_xml", return_value=[clip]), \
+        patch("archive_nle.uncopied_files", return_value=[clip]) as mock_uncopied, \
+        patch("archive_nle.get_file_size_with_retry", return_value=0), \
+        patch("archive_nle.copy_files_shutil") as mock_copy, \
+        patch("builtins.input", return_value="y"):
+        a.main()
+
+    mock_uncopied.assert_called_once_with(
+        src_files=[clip],
+        dst_path=destination,
+        rewrite_rules=rewrite_rules,
+    )
+    assert mock_copy.call_args.kwargs["rewrite_rules"] == rewrite_rules
     assert mock_copy.call_args.kwargs["flat"] is False
 
 
