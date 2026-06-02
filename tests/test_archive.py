@@ -374,6 +374,29 @@ def test_copy_files_shutil():
     assert 1 == 1
 
 
+def test_copy_files_shutil_missing_source_does_not_create_destination_parent(
+    tmp_path: Path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    destination = tmp_path / "destination"
+    destination.mkdir()
+    source_root = tmp_path / "source"
+    rewrite_root = tmp_path / "rewritten"
+    rewrite_root.mkdir()
+    missing_source = source_root / "GPWR" / "io" / "incoming" / "missing.mov"
+    expected_parent = rewrite_root / "GPWR" / "io" / "incoming"
+
+    a.copy_files_shutil(
+        [missing_source],
+        destination,
+        rewrite_rules=[(source_root, rewrite_root)],
+    )
+
+    assert expected_parent.exists() is False
+    assert (tmp_path / "failed.log").exists() is True
+
+
 def test_is_gzip_file_detects_prproj_fixture():
     prproj_path = Path("tests/prproj/SHORT_SEQUENCE_FOR_FILEPATH_ANALYSIS.prproj")
     assert s.is_gzip_file(prproj_path) is True

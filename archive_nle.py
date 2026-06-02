@@ -142,6 +142,9 @@ def determine_destination(
 
 def copy_file(src: Path, dst: Path, placeholder: bool = False):
     """Copies file or creates a placeholder file at destination."""
+    if not placeholder and not src.is_file():
+        raise FileNotFoundError(f"Source file does not exist or is not a file: {src}")
+
     ensure_folder_exists(dst.parent)
     if placeholder:
         dst.touch(exist_ok=True)
