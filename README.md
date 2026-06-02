@@ -2,29 +2,7 @@
 
 ## Overview
 
-`archive_nle` is a Python module used in film post-production environments for archiving final sequences. It facilitates the consolidation of media files referenced in AAF (for Avid), XML (for Premiere), or Premiere project files (`.prproj`) to a singular location, thereby enabling easy reconstruction of projects using the respective source file.
-
-## Features
-
-- **Size Conversion**: The `convert_size` function converts file sizes from bytes to a human-readable format.
-  
-- **File List Retrieval**: `filenames_in_path` retrieves the names of files in a specified path with given extensions.
-
-- **Uncopied File Identification**: Functions `uncopied_files` and `uncopiedfiles_directoryagnostic` identify files that haven’t been copied to the destination directory.
-
-- **Destination Path Determination**: `destination_path` converts a source path into a destination path.
-
-- **File Existence Checking**: `file_exists` checks if a specified file exists in the destination directory.
-
-- **Folder Existence Assurance**: `ensure_folder_exists` creates a folder if it doesn’t already exist.
-
-- **Destination Determination**: `determine_destination` decides the destination path of a file.
-
-- **File Copying**: `copy_file` and `copy_files_shutil` handle the copying of files and folder creation.
-
-- **Directory Validation**: `dir_path` validates if a given string is a directory path.
-
-- **Argument Parsing**: `parse_arguments` parses and validates command-line arguments.
+`archive_nle` is a Python module used in film post-production for archiving the media from sequences and projects. It consolidates full media files referenced in AAF (for Avid), XML (for Premiere), or Premiere project files (`.prproj`) to a new location, enabling the user to open and play timelines from external drives, networked locations, etc.
 
 ## Usage
 
@@ -47,6 +25,21 @@ Okay to proceed? Y / N:
 ```
 
 Enter `Y` to copy media or create placeholders. Enter `N` to cancel.
+
+Use `-y` or `--yes` to skip this confirmation prompt and proceed as if `Y` was entered:
+
+```bash
+python archive_nle.py -s /path/to/source.prproj -d /path/to/destination --yes
+```
+
+If a referenced file cannot be sized during the scan because it is missing, offline, or blocked by permissions, the tool reports it before the prompt instead of exiting:
+
+```text
+File Size Warnings:
+1 referenced file(s) could not be sized. They are counted as 0B in the totals above, but the copy can still continue. The copy may still fail later if the file remains inaccessible.
+- /Users/user/Documents/Adobe/Premiere Pro/24.0/example_still.jpg
+  PermissionError: [Errno 13] Permission denied
+```
 
 ### Normal Archive Mode
 
@@ -304,6 +297,7 @@ The script supports the following command-line arguments:
 - `-d, --destination`: Destination path for media (required).
 - `-e, --exclude_directories`: Space-separated list of paths to exclude from copying.
 - `-p, --placeholder`: Create empty placeholder files at the destination instead of copying full media.
+- `-y, --yes`: Skip the confirmation prompt and proceed as if `Y` was entered.
 - `--rewrite-root OLD_ROOT NEW_ROOT`: For XML/PRPROJ sources, copy matching media paths under `NEW_ROOT` instead of the archive destination by replacing `OLD_ROOT` with `NEW_ROOT`. Both paths must be absolute, `NEW_ROOT` must already exist, and AAF sources do not support this option.
 
 ### Important Path Rules

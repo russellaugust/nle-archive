@@ -13,6 +13,7 @@ logging.basicConfig(filename="example.log", filemode="a", level=logging.DEBUG)
 
 SUPPORTED_SOURCE_SUFFIXES = {".xml", ".aaf", ".prproj"}
 PathRewriteRule = Tuple[Path, Path]
+FileSizeWarning = Tuple[str, str]
 
 def log_file_operation(file_path: Path, operation: str):
     logging.debug(f"{operation}: {file_path}")
@@ -323,6 +324,13 @@ def parse_arguments():
     )
 
     parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="skip the confirmation prompt and proceed as if Y was entered.",
+    )
+
+    parser.add_argument(
         "--rewrite-root",
         type=Path,
         nargs=2,
@@ -373,19 +381,62 @@ def ask_user_to_continue_or_exit(error: Exception):
         else:
             print("Invalid input. Please enter 'C' to continue or 'E' to exit.")
 
-def get_file_size_with_retry(file_path: str, retries: int = 3, delay: float = 1.0) -> int:
+def get_file_size_with_retry(
+    file_path: str,
+    retries: int = 3,
+    delay: float = 1.0,
+    size_warnings: Optional[List[FileSizeWarning]] = None,
+) -> int:
     """Get file size with retries to handle potential file system latency."""
     for attempt in range(retries):
         try:
             return os.path.getsize(file_path)
-        except FileNotFoundError as e:
+        except OSError as error:
             if attempt < retries - 1:
                 time.sleep(delay)
             else:
-                print (f"{e}")
+                if size_warnings is not None:
+                    size_warnings.append((file_path, f"{type(error).__name__}: {error}"))
+                logging.warning("Unable to get file size for %s: %s", file_path, error)
                 return 0
     
     return 0  # Return 0 if all retries fail
+
+
+def total_file_size_with_warnings(
+    file_paths: Sequence[Union[Path, str]],
+    size_warnings: List[FileSizeWarning],
+) -> int:
+    """Return total file size and collect non-fatal size lookup warnings."""
+    return sum(
+        get_file_size_with_retry(str(src_file), 1, 0, size_warnings=size_warnings)
+        for src_file in file_paths
+    )
+
+
+def print_file_size_warnings(size_warnings: Sequence[FileSizeWarning]):
+    """Print non-fatal file size warnings before prompting for copy confirmation."""
+    if not size_warnings:
+        return
+
+    unique_warnings = []
+    seen_warnings = set()
+    for file_path, reason in size_warnings:
+        warning_key = (file_path, reason)
+        if warning_key in seen_warnings:
+            continue
+        seen_warnings.add(warning_key)
+        unique_warnings.append((file_path, reason))
+
+    print("\nFile Size Warnings:")
+    print(
+        f"{len(unique_warnings)} referenced file(s) could not be sized. "
+        "They are counted as 0B in the totals above, but the copy can still continue. "
+        "The copy may still fail later if the file remains inaccessible."
+    )
+    for file_path, reason in unique_warnings:
+        print(f"- {file_path}")
+        print(f"  {reason}")
 
 def main():
     args = parse_arguments()
@@ -394,6 +445,7 @@ def main():
     destination = args.destination
     ignore_paths = args.exclude_directories
     placeholder = args.placeholder
+    yes = getattr(args, "yes", False)
     rewrite_rules = getattr(args, "rewrite_root", None)
 
     source_paths_to_process = []
@@ -427,20 +479,26 @@ def main():
                 dst_path=destination,
             )
 
-    src_size_with_ignored = sum(
-        [get_file_size_with_retry(str(src_file), 1, 0) for src_file in source_paths_to_process]
+    size_warnings: List[FileSizeWarning] = []
+    src_size_with_ignored = total_file_size_with_warnings(
+        source_paths_to_process,
+        size_warnings,
     )
     print("Total Media (excluding ignored paths):", convert_size(src_size_with_ignored))
 
     # print(source_uncopied)
-    uncopied_size = sum([get_file_size_with_retry(str(src_file), 1, 0) for src_file in source_uncopied])
+    uncopied_size = total_file_size_with_warnings(
+        source_uncopied,
+        size_warnings,
+    )
 
     # get total size of source files but exclude what's already been copied.
     print("Media Left to Copy:", convert_size(uncopied_size))
+    print_file_size_warnings(size_warnings)
 
     ready = False
     while ready == False:
-        name = input("Okay to proceed? Y / N: ")
+        name = "y" if yes else input("Okay to proceed? Y / N: ")
         if name.lower() == "y":
             if rewrite_rules:
                 copy_files_shutil(

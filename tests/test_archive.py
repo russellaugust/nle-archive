@@ -42,6 +42,17 @@ def test_parse_arguments_accepts_multiple_sources_of_same_type():
              assert args.source == [Path('one.xml'), Path('two.xml')]
 
 
+@pytest.mark.parametrize("yes_flag", ["-y", "--yes"])
+def test_parse_arguments_accepts_yes_flag(yes_flag):
+    with patch('sys.argv', ['archive aaf xml', '-s', 'one.xml', '-d', '/some/destination', yes_flag]), \
+         patch('archive_nle.Path.is_file', return_value=True), \
+         patch('archive_nle.Path.is_dir', return_value=True):
+
+             args = a.parse_arguments()
+
+             assert args.yes is True
+
+
 def test_parse_arguments_accepts_rewrite_root_for_xml():
     with patch(
         'sys.argv',
@@ -503,6 +514,93 @@ def test_main_passes_rewrite_rules_for_xml_sources(tmp_path: Path):
     )
     assert mock_copy.call_args.kwargs["rewrite_rules"] == rewrite_rules
     assert mock_copy.call_args.kwargs["flat"] is False
+
+
+def test_main_yes_flag_skips_confirmation_prompt(tmp_path: Path):
+    source = tmp_path / "one.xml"
+    source.touch()
+    destination = tmp_path / "archive"
+    destination.mkdir()
+    clip = Path("/Volumes/jobs/GPWR1/02_post/media/A.mov")
+
+    args = a.argparse.Namespace(
+        source=[source],
+        destination=destination,
+        exclude_directories=None,
+        placeholder=True,
+        yes=True,
+    )
+
+    with patch("archive_nle.parse_arguments", return_value=args), \
+        patch("archive_nle.search.filepaths_from_xml", return_value=[clip]), \
+        patch("archive_nle.uncopied_files", return_value=[clip]), \
+        patch("archive_nle.get_file_size_with_retry", return_value=0), \
+        patch("archive_nle.copy_files_shutil") as mock_copy, \
+        patch("builtins.input", side_effect=AssertionError("input should not be called")):
+        a.main()
+
+    assert mock_copy.called is True
+
+
+def test_get_file_size_with_retry_records_permission_warning():
+    size_warnings = []
+
+    with patch("archive_nle.os.path.getsize", side_effect=PermissionError("permission denied")):
+        result = a.get_file_size_with_retry(
+            "/Users/user/Documents/denied.mov",
+            retries=1,
+            delay=0,
+            size_warnings=size_warnings,
+        )
+
+    assert result == 0
+    assert len(size_warnings) == 1
+    assert size_warnings[0][0] == "/Users/user/Documents/denied.mov"
+    assert "PermissionError" in size_warnings[0][1]
+
+
+def test_main_reports_size_warnings_before_copy_prompt(tmp_path: Path, capsys):
+    source = tmp_path / "one.xml"
+    source.touch()
+    destination = tmp_path / "archive"
+    destination.mkdir()
+    denied_clip = Path("/Users/user/Documents/denied.mov")
+
+    args = a.argparse.Namespace(
+        source=[source],
+        destination=destination,
+        exclude_directories=None,
+        placeholder=True,
+    )
+
+    def fake_get_file_size_with_retry(
+        file_path,
+        retries=3,
+        delay=1.0,
+        size_warnings=None,
+    ):
+        if size_warnings is not None:
+            size_warnings.append(
+                (file_path, "PermissionError: [Errno 13] Permission denied")
+            )
+        return 0
+
+    with patch("archive_nle.parse_arguments", return_value=args), \
+        patch("archive_nle.search.filepaths_from_xml", return_value=[denied_clip]), \
+        patch(
+            "archive_nle.get_file_size_with_retry",
+            side_effect=fake_get_file_size_with_retry,
+        ), \
+        patch("archive_nle.copy_files_shutil") as mock_copy, \
+        patch("builtins.input", return_value="y"):
+        a.main()
+
+    output = capsys.readouterr().out
+
+    assert "File Size Warnings:" in output
+    assert "/Users/user/Documents/denied.mov" in output
+    assert "PermissionError" in output
+    assert mock_copy.called is True
 
 
 def test_main_aggregates_multiple_aaf_sources_with_flat_copy(tmp_path: Path):
