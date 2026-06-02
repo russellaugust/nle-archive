@@ -83,14 +83,33 @@ def rewrite_destination_path(
         return None
 
     for old_root, new_root in rewrite_rules:
-        try:
-            relative_path = src_file.relative_to(old_root)
-        except ValueError:
+        relative_path = case_insensitive_relative_to(src_file, old_root)
+        if relative_path is None:
             continue
 
         return new_root / relative_path
 
     return None
+
+
+def case_insensitive_relative_to(path: Path, root: Path) -> Optional[Path]:
+    """Return path relative to root using case-insensitive path-part matching."""
+    path_parts = path.parts
+    root_parts = root.parts
+
+    if len(path_parts) < len(root_parts):
+        return None
+
+    path_root_parts = path_parts[:len(root_parts)]
+    if tuple(part.casefold() for part in path_root_parts) != tuple(
+        part.casefold() for part in root_parts
+    ):
+        return None
+
+    relative_parts = path_parts[len(root_parts):]
+    if not relative_parts:
+        return Path()
+    return Path(*relative_parts)
 
 
 def file_exists(dst_file: Path) -> bool:

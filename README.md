@@ -118,7 +118,7 @@ with this root:
 
 and leaves the rest of the media path unchanged.
 
-`--rewrite-root` only matches full path parts. For example, this source path does not match `/Volumes/jobs`:
+`--rewrite-root` matches full path parts case-insensitively. For example, `/Volumes/Jobs/movie/...` matches a rewrite root of `/Volumes/jobs`, but this source path still does not match `/Volumes/jobs` because `jobs_backup` is a different path part:
 
 ```text
 /Volumes/jobs_backup/movie/02_post/media/A001_C001.mov

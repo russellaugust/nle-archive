@@ -170,8 +170,26 @@ def test_rewrite_destination_path_matches_path_root():
     assert result == Path('/Volumes/primefocus/jobs/GPWR1/02_post/media/test.mov')
 
 
+def test_rewrite_destination_path_matches_path_root_case_insensitively():
+    src = Path('/Volumes/Jobs/GPWR1/02_post/media/test.mov')
+    rewrite_rules = [(Path('/Volumes/jobs'), Path('/Volumes/primefocus/jobs'))]
+
+    result = a.rewrite_destination_path(src, rewrite_rules)
+
+    assert result == Path('/Volumes/primefocus/jobs/GPWR1/02_post/media/test.mov')
+
+
 def test_rewrite_destination_path_does_not_match_partial_root_name():
     src = Path('/Volumes/jobs_backup/GPWR1/02_post/media/test.mov')
+    rewrite_rules = [(Path('/Volumes/jobs'), Path('/Volumes/primefocus/jobs'))]
+
+    result = a.rewrite_destination_path(src, rewrite_rules)
+
+    assert result is None
+
+
+def test_rewrite_destination_path_does_not_match_case_insensitive_partial_root_name():
+    src = Path('/Volumes/Jobs_backup/GPWR1/02_post/media/test.mov')
     rewrite_rules = [(Path('/Volumes/jobs'), Path('/Volumes/primefocus/jobs'))]
 
     result = a.rewrite_destination_path(src, rewrite_rules)
